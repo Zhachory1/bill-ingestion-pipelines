@@ -1,0 +1,41 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<billStatus>
+  <bill>
+    <billType>HR</billType>
+    <billNumber>1234</billNumber>
+    <congress>118</congress>
+    <title>A Bill To Test Parsing</title>
+    <updateDate>2023-01-15T10:00:00Z</updateDate>
+    <sponsors>
+      <item>
+        <bioguideId>A000001</bioguideId>
+        <fullName>Rep. Jane Doe [D-CA-1]</fullName>
+        <party>D</party>
+        <state>CA</state>
+      </item>
+    </sponsors>
+    <cosponsors>
+      <item>
+        <bioguideId>B000002</bioguideId>
+        <fullName>Rep. John Smith [R-TX-5]</fullName>
+        <party>R</party>
+        <state>TX</state>
+      </item>
+    </cosponsors>
+    <actions>
+      <item>
+        <actionDate>2023-01-10</actionDate>
+        <text>Introduced in House</text>
+      </item>
+      <item>
+        <actionDate>2023-01-15</actionDate>
+        <text>Passed House</text>
+      </item>
+    </actions>
+    <summaries>
+      <summary>
+        <text>This bill does a thing.</text>
+      </summary>
+    </summaries>
+  </bill>
+</billStatus>
