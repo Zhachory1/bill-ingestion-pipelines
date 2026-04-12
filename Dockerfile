@@ -1,4 +1,4 @@
-FROM python:3.12-slim
+FROM python:3.12.13-slim
 
 # git is required by daily-dl (subprocess calls `git diff`)
 RUN apt-get update && apt-get install -y --no-install-recommends \

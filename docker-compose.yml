@@ -1,6 +1,6 @@
 services:
   postgres:
-    image: postgres:16
+    image: postgres:16.13
     environment:
       POSTGRES_USER: ${POSTGRES_USER:-billchatbot}
       POSTGRES_PASSWORD: ${POSTGRES_PASSWORD:-billchatbot_dev_password}
@@ -15,6 +15,7 @@ services:
       timeout: 5s
       retries: 5
 
+  # migrate: run migrations in isolation with: docker compose --profile etl run --rm migrate
   migrate:
     build: .
     command: uv run alembic upgrade head
@@ -48,6 +49,7 @@ services:
     environment:
       DATABASE_URL: postgresql://${POSTGRES_USER:-billchatbot}:${POSTGRES_PASSWORD:-billchatbot_dev_password}@postgres:5432/${POSTGRES_DB:-billchatbot}
     volumes:
+      # Not :ro — git diff HEAD@{1} may write reflog/lock files inside .git/
       - ${REPO_PATH:?Set REPO_PATH in .env to the host path of the congress git repo}:/data/repo
     depends_on:
       postgres:
