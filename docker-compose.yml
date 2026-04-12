@@ -15,5 +15,47 @@ services:
       timeout: 5s
       retries: 5
 
+  migrate:
+    build: .
+    command: uv run alembic upgrade head
+    environment:
+      DATABASE_URL: postgresql://${POSTGRES_USER:-billchatbot}:${POSTGRES_PASSWORD:-billchatbot_dev_password}@postgres:5432/${POSTGRES_DB:-billchatbot}
+    depends_on:
+      postgres:
+        condition: service_healthy
+    restart: "no"
+    profiles: [etl, universe-dl, daily-dl]
+
+  universe-dl:
+    build: .
+    command: uv run python -m app.cli universe-dl /data/corpus
+    environment:
+      DATABASE_URL: postgresql://${POSTGRES_USER:-billchatbot}:${POSTGRES_PASSWORD:-billchatbot_dev_password}@postgres:5432/${POSTGRES_DB:-billchatbot}
+      ETL_BATCH_SIZE: ${ETL_BATCH_SIZE:-100}
+    volumes:
+      - ${CORPUS_DIR:?Set CORPUS_DIR in .env to the host path of the BILLSTATUS corpus}:/data/corpus:ro
+    depends_on:
+      postgres:
+        condition: service_healthy
+      migrate:
+        condition: service_completed_successfully
+    restart: "no"
+    profiles: [universe-dl]
+
+  daily-dl:
+    build: .
+    command: uv run python -m app.cli daily-dl /data/repo
+    environment:
+      DATABASE_URL: postgresql://${POSTGRES_USER:-billchatbot}:${POSTGRES_PASSWORD:-billchatbot_dev_password}@postgres:5432/${POSTGRES_DB:-billchatbot}
+    volumes:
+      - ${REPO_PATH:?Set REPO_PATH in .env to the host path of the congress git repo}:/data/repo
+    depends_on:
+      postgres:
+        condition: service_healthy
+      migrate:
+        condition: service_completed_successfully
+    restart: "no"
+    profiles: [daily-dl]
+
 volumes:
   postgres_data:
