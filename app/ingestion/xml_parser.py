@@ -1,6 +1,6 @@
 from dataclasses import dataclass, field
 from pathlib import Path
-from lxml import etree
+from lxml import etree  # type: ignore
 
 
 @dataclass

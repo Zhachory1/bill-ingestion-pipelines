@@ -51,5 +51,5 @@ def upsert_bill(db: Session, parsed: ParsedBill) -> None:
         _upsert_sponsor(db, s)
     db.flush()
 
-    bill.sponsors = [db.get(models.Sponsor, s.bioguide_id) for s in parsed.sponsors]
-    bill.cosponsors = [db.get(models.Sponsor, s.bioguide_id) for s in parsed.cosponsors]
+    bill.sponsors = [sp for s in parsed.sponsors if (sp := db.get(models.Sponsor, s.bioguide_id)) is not None]
+    bill.cosponsors = [sp for s in parsed.cosponsors if (sp := db.get(models.Sponsor, s.bioguide_id)) is not None]
