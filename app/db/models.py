@@ -1,9 +1,37 @@
+import json
 from datetime import datetime
 from sqlalchemy import Table, Column, Integer, String, DateTime, Text, ForeignKey, UniqueConstraint
 from sqlalchemy.orm import relationship, Mapped, mapped_column
+from sqlalchemy.types import TypeDecorator
 from pgvector.sqlalchemy import Vector
 from app.db.session import Base
 from app.config import settings
+
+
+class JsonVector(TypeDecorator):
+    """SQLite-compatible fallback for Vector columns.
+
+    Under PostgreSQL the underlying Vector type handles serialization natively.
+    Under SQLite (in-memory testing) the column is stored as a JSON text string
+    and deserialized back to a Python list on retrieval.
+    """
+
+    impl = Text
+    cache_ok = True
+
+    def process_bind_param(self, value, dialect):
+        if value is None:
+            return None
+        if isinstance(value, str):
+            return value  # already serialized (e.g. passed through twice)
+        return json.dumps(value)
+
+    def process_result_value(self, value, dialect):
+        if value is None:
+            return None
+        if isinstance(value, str):
+            return json.loads(value)
+        return value
 
 # Join tables
 bill_sponsors = Table(
@@ -42,7 +70,7 @@ class Bill(Base):
     bill_url: Mapped[str | None] = mapped_column(Text, nullable=True)
 
     embedding: Mapped[list[float] | None] = mapped_column(
-        Vector(settings.EMBEDDING_DIM).with_variant(Text(), "sqlite"),
+        Vector(settings.EMBEDDING_DIM).with_variant(JsonVector(), "sqlite"),
         nullable=True,
     )
 
