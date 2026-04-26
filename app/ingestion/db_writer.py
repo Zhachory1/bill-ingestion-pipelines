@@ -1,3 +1,4 @@
+from sqlalchemy.exc import IntegrityError
 from sqlalchemy.orm import Session
 from app.db import models
 from app.ingestion.xml_parser import ParsedBill, ParsedSponsor
@@ -19,6 +20,20 @@ def _upsert_sponsor(db: Session, s: ParsedSponsor) -> None:
         existing.state = s.state
 
 
+def _upsert_subject(db: Session, name: str) -> models.LegislativeSubject:
+    existing = db.query(models.LegislativeSubject).filter_by(name=name).first()
+    if existing is not None:
+        return existing
+    try:
+        obj = models.LegislativeSubject(name=name)
+        db.add(obj)
+        db.flush()
+        return obj
+    except IntegrityError:
+        db.rollback()
+        return db.query(models.LegislativeSubject).filter_by(name=name).one()
+
+
 def upsert_bill(db: Session, parsed: ParsedBill) -> None:
     """Insert or update a Bill and its sponsor/cosponsor relationships."""
     existing = db.get(models.Bill, parsed.bill_id)
@@ -34,6 +49,9 @@ def upsert_bill(db: Session, parsed: ParsedBill) -> None:
             latest_action=parsed.latest_action,
             latest_action_date=parsed.latest_action_date,
             last_updated=parsed.last_updated,
+            introduced_date=parsed.introduced_date,
+            chamber=parsed.chamber,
+            bill_url=parsed.bill_url,
         )
         db.add(bill)
         db.flush()
@@ -44,6 +62,9 @@ def upsert_bill(db: Session, parsed: ParsedBill) -> None:
         bill.latest_action = parsed.latest_action
         bill.latest_action_date = parsed.latest_action_date
         bill.last_updated = parsed.last_updated
+        bill.introduced_date = parsed.introduced_date
+        bill.chamber = parsed.chamber
+        bill.bill_url = parsed.bill_url
 
     for s in parsed.sponsors:
         _upsert_sponsor(db, s)
@@ -53,3 +74,4 @@ def upsert_bill(db: Session, parsed: ParsedBill) -> None:
 
     bill.sponsors = [sp for s in parsed.sponsors if (sp := db.get(models.Sponsor, s.bioguide_id)) is not None]
     bill.cosponsors = [sp for s in parsed.cosponsors if (sp := db.get(models.Sponsor, s.bioguide_id)) is not None]
+    bill.subjects = [_upsert_subject(db, name) for name in parsed.subjects]

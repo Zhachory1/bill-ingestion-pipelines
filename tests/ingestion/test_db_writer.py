@@ -28,6 +28,10 @@ def make_parsed_bill(**kwargs) -> ParsedBill:
         latest_action="Passed",
         latest_action_date="2023-01-15",
         last_updated="2023-01-15T10:00:00Z",
+        introduced_date="2023-01-05",
+        chamber="House",
+        bill_url="https://www.congress.gov/bill/118th-congress/house-bill/1",
+        subjects=[],
         sponsors=[ParsedSponsor("A000001", "Jane Doe", "D", "CA")],
         cosponsors=[],
     )
@@ -68,3 +72,36 @@ def test_upsert_does_not_duplicate_sponsors(db):
     upsert_bill(db, make_parsed_bill())
     db.commit()
     assert db.query(models.Sponsor).count() == 1
+
+
+def test_upsert_creates_subjects(db):
+    bill = make_parsed_bill(
+        subjects=["Health care", "Taxation"],
+        introduced_date="2023-01-05",
+        chamber="House",
+        bill_url="https://www.congress.gov/bill/118th-congress/house-bill/1",
+    )
+    upsert_bill(db, bill)
+    db.commit()
+    result = db.query(models.Bill).one()
+    assert len(result.subjects) == 2
+    assert {s.name for s in result.subjects} == {"Health care", "Taxation"}
+
+
+def test_upsert_does_not_duplicate_subjects(db):
+    """Inserting the same bill twice must not create duplicate subject rows."""
+    bill = make_parsed_bill(subjects=["Health care"])
+    upsert_bill(db, bill)
+    db.commit()
+    upsert_bill(db, bill)
+    db.commit()
+    assert db.query(models.LegislativeSubject).count() == 1
+
+
+def test_upsert_shares_subjects_across_bills(db):
+    """Same subject name from two different bills -> one LegislativeSubject row."""
+    upsert_bill(db, make_parsed_bill(bill_id="118-hr-1", bill_number=1, subjects=["Health care"]))
+    upsert_bill(db, make_parsed_bill(bill_id="118-hr-2", bill_number=2, subjects=["Health care"]))
+    db.commit()
+    assert db.query(models.LegislativeSubject).count() == 1
+    assert db.query(models.Bill).count() == 2
