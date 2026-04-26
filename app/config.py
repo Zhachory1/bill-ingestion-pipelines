@@ -8,6 +8,8 @@ class Settings(BaseSettings):
     LOG_LEVEL: str = "INFO"
     ETL_BATCH_SIZE: int = 100
     ETL_RATE_LIMIT_DELAY: float = 1.0
+    EMBEDDING_MODEL: str = "all-MiniLM-L6-v2"
+    EMBEDDING_DIM: int = 384
 
 
 settings = Settings()

@@ -17,10 +17,11 @@ dependencies = [
     "openai",
     "anthropic",
     "spacy",
+    "pgvector>=0.4.2",
 ]
 
 [project.optional-dependencies]
-dev = ["pytest", "pytest-cov", "httpx"]
+dev = ["pytest", "pytest-cov", "httpx", "lxml-stubs"]
 
 [tool.pytest.ini_options]
 testpaths = ["tests"]

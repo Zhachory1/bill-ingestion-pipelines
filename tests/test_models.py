@@ -52,3 +52,14 @@ def test_parse_failure_log(db):
     db.add(failure)
     db.commit()
     assert db.query(models.ParseFailure).count() == 1
+
+
+def test_bill_embedding_column_exists(db):
+    bill = models.Bill(
+        bill_id="118-hr-9", congress=118, bill_type="hr", bill_number=9,
+        title="Embedding Test", latest_action="", latest_action_date="2023-01-01", last_updated="2023-01-01",
+    )
+    db.add(bill)
+    db.commit()
+    result = db.query(models.Bill).filter_by(bill_id="118-hr-9").one()
+    assert result.embedding is None  # null until embedding pipeline runs
