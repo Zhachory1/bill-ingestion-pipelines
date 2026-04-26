@@ -1,3 +1,11 @@
+"""FastAPI application entry point.
+
+Routers mounted under /api:
+  GET /api/bills/{id}       — bill metadata, sponsors, subjects
+  GET /api/bills/{id}/text  — title + summary payload for LLM context
+  GET /api/search?q=        — semantic search via pgvector cosine similarity
+"""
+
 from fastapi import FastAPI
 from app.api import bills, search
 

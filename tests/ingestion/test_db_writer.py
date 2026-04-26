@@ -3,7 +3,7 @@ from sqlalchemy import create_engine
 from sqlalchemy.orm import sessionmaker
 from app.db.session import Base
 from app.db import models  # noqa
-from app.ingestion.db_writer import upsert_bill
+from app.ingestion.db_writer import upsert_bill, _upsert_subject
 from app.ingestion.xml_parser import ParsedBill, ParsedSponsor
 
 
@@ -105,3 +105,13 @@ def test_upsert_shares_subjects_across_bills(db):
     db.commit()
     assert db.query(models.LegislativeSubject).count() == 1
     assert db.query(models.Bill).count() == 2
+
+
+def test_upsert_subject_returns_existing(db):
+    """_upsert_subject must return the existing row without raising when called twice."""
+    s1 = _upsert_subject(db, "Education")
+    db.commit()
+    s2 = _upsert_subject(db, "Education")
+    db.commit()
+    assert s1.id == s2.id
+    assert db.query(models.LegislativeSubject).count() == 1

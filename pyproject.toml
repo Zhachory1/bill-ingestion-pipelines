@@ -9,14 +9,12 @@ dependencies = [
     "alembic",
     "psycopg2-binary",
     "lxml",
-    "gitpython",
     "loguru",
     "typer",
     "pydantic-settings",
     "sentence-transformers",
     "openai",
     "anthropic",
-    "spacy",
     "pgvector>=0.4.2",
 ]
 

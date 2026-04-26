@@ -1,3 +1,5 @@
+"""Batch embedding pipeline: encode bill text with SentenceTransformer and write to DB."""
+
 from loguru import logger
 from sentence_transformers import SentenceTransformer
 from sqlalchemy.orm import Session

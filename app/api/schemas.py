@@ -1,3 +1,5 @@
+"""Pydantic response models for the bill retrieval API."""
+
 from pydantic import BaseModel
 
 
@@ -30,6 +32,7 @@ class BillOut(BaseModel):
 
     @classmethod
     def from_orm_bill(cls, bill) -> "BillOut":
+        """Construct from ORM Bill; subjects must be extracted by name since they are ORM objects."""
         return cls(
             bill_id=bill.bill_id,
             congress=bill.congress,

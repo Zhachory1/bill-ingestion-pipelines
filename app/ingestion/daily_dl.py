@@ -1,3 +1,5 @@
+"""Incremental ingestion pipeline using git diff to find newly changed bills."""
+
 from dataclasses import dataclass
 from pathlib import Path
 import subprocess

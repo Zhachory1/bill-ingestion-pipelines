@@ -53,7 +53,7 @@ def daily_dl(
 
 @app.command()
 def embed_bills(
-    batch_size: int = typer.Option(64, help="Bills per encoding batch"),
+    batch_size: int = typer.Option(settings.ETL_BATCH_SIZE, help="Bills per encoding batch"),
     model: str = typer.Option(settings.EMBEDDING_MODEL, help="SentenceTransformer model name"),
 ):
     """Generate and store embeddings for bills with null embedding."""

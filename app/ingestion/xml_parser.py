@@ -1,3 +1,5 @@
+"""Parse BILLSTATUS XML files from the congress/unitedstates corpus into dataclasses."""
+
 from dataclasses import dataclass, field
 from pathlib import Path
 from lxml import etree  # type: ignore
@@ -51,6 +53,8 @@ class BillStatusParser:
         """
         tree = etree.parse(str(xml_path))
         bill = tree.find(".//bill")
+        if bill is None:
+            raise ValueError(f"No <bill> element found in {xml_path}")
 
         def req(tag: str) -> str:
             el = bill.find(tag)

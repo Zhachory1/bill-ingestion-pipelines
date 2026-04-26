@@ -51,6 +51,14 @@ def test_raises_on_missing_required_field(tmp_path):
         BillStatusParser.parse(bad_xml)
 
 
+def test_raises_when_no_bill_element(tmp_path):
+    """Parser must raise ValueError if the XML has no <bill> element at all."""
+    bad_xml = tmp_path / "empty.xml"
+    bad_xml.write_text("<billStatus></billStatus>")
+    with pytest.raises(ValueError, match="No <bill> element"):
+        BillStatusParser.parse(bad_xml)
+
+
 def test_parses_introduced_date():
     result = BillStatusParser.parse(FIXTURE)
     assert result.introduced_date == "2023-01-10"

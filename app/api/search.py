@@ -1,3 +1,6 @@
+"""Semantic bill search endpoint using pgvector cosine similarity."""
+
+from functools import lru_cache
 from fastapi import APIRouter, Depends, Query
 from sqlalchemy.orm import Session
 from sqlalchemy import text
@@ -8,14 +11,11 @@ from app.config import settings
 
 router = APIRouter()
 
-_model_instance: SentenceTransformer | None = None
 
-
+@lru_cache(maxsize=1)
 def _get_model() -> SentenceTransformer:
-    global _model_instance
-    if _model_instance is None:
-        _model_instance = SentenceTransformer(settings.EMBEDDING_MODEL)
-    return _model_instance
+    """Return the shared SentenceTransformer instance (loaded once, thread-safe via lru_cache)."""
+    return SentenceTransformer(settings.EMBEDDING_MODEL)
 
 
 def _vector_search(db: Session, query_vec: list[float], *, limit: int) -> list[dict]:

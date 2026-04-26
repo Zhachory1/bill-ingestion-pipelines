@@ -1,3 +1,5 @@
+"""Persist parsed bill data to the database via upsert logic."""
+
 from sqlalchemy.exc import IntegrityError
 from sqlalchemy.orm import Session
 from app.db import models
@@ -21,16 +23,23 @@ def _upsert_sponsor(db: Session, s: ParsedSponsor) -> None:
 
 
 def _upsert_subject(db: Session, name: str) -> models.LegislativeSubject:
+    """Return the LegislativeSubject with the given name, creating it if absent.
+
+    Uses a SAVEPOINT (begin_nested) so that a concurrent-insert IntegrityError
+    only rolls back this nested transaction and not the enclosing upsert_bill
+    session state.
+    """
     existing = db.query(models.LegislativeSubject).filter_by(name=name).first()
     if existing is not None:
         return existing
     try:
-        obj = models.LegislativeSubject(name=name)
-        db.add(obj)
-        db.flush()
+        # Savepoint: rollback here only undoes the nested transaction, not the
+        # parent session (which may have already flushed bill/sponsor rows).
+        with db.begin_nested():
+            obj = models.LegislativeSubject(name=name)
+            db.add(obj)
         return obj
     except IntegrityError:
-        db.rollback()
         return db.query(models.LegislativeSubject).filter_by(name=name).one()
 
 
