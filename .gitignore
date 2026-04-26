@@ -127,3 +127,6 @@ pgadmin/
 
 # UV package manager
 .python-version
+
+# HubSpot config file
+hubspot.config.yml

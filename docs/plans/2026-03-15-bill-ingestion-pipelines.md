@@ -4,9 +4,9 @@
 
 **Goal:** Build two ingestion pipelines — Universe DL (bulk historical load) and Daily DL (incremental delta updates) — that parse BILLSTATUS XML from the `unitedstates/congress` scraper into the PostgreSQL Bill DB.
 
-**Architecture:** A shared `BillStatusParser` (lxml) extracts structured data from GPO BILLSTATUS XML. The Universe DL walks a local corpus directory in batches with checkpoint recovery. The Daily DL uses `git diff` on the scraped repo to find changed files and upserts only deltas. Both pipelines write to the same PostgreSQL schema via SQLAlchemy and are invoked via Typer CLI commands.
+**Architecture:** Shared `BillStatusParser` (lxml) extracts structured data from GPO BILLSTATUS XML. Universe DL walks local corpus directory in batches with checkpoint recovery. Daily DL uses `git diff` on scraped repo to find changed files and upserts only deltas. Both pipelines write to same PostgreSQL schema via SQLAlchemy and invoke via Typer CLI commands.
 
-**Tech Stack:** Python 3.12, `uv`, SQLAlchemy 2.x, Alembic, lxml, GitPython, loguru, Typer, PostgreSQL (Docker Compose). **Note:** The design doc references Elasticsearch for the search index; this project currently uses pgvector for semantic search (see `.env.example` and CLAUDE.md). The search-index update step in Tasks 5 and 7 is stubbed as a no-op interface you can implement later.
+**Tech Stack:** Python 3.12, `uv`, SQLAlchemy 2.x, Alembic, lxml, GitPython, loguru, Typer, PostgreSQL + pgvector (Docker Compose).
 
 ---
 
@@ -16,6 +16,55 @@ Before starting:
 - Docker Desktop running: `docker compose up -d postgres`
 - `usc-run` CLI available: `pip install congress` or follow https://github.com/unitedstates/congress
 - `.env` copied from `.env.example` with real values
+
+---
+
+### Task 0: Docker Compose
+
+**Files:**
+- Create: `docker-compose.yml`
+
+**Step 1: Create docker-compose.yml**
+
+```yaml
+services:
+  postgres:
+    image: pgvector/pgvector:pg16
+    environment:
+      POSTGRES_USER: ${POSTGRES_USER:-bills}
+      POSTGRES_PASSWORD: ${POSTGRES_PASSWORD:-bills}
+      POSTGRES_DB: ${POSTGRES_DB:-bills}
+    ports:
+      - "${POSTGRES_PORT:-5432}:5432"
+    volumes:
+      - postgres_data:/var/lib/postgresql/data
+    healthcheck:
+      test: ["CMD-SHELL", "pg_isready -U ${POSTGRES_USER:-bills}"]
+      interval: 5s
+      timeout: 5s
+      retries: 5
+
+volumes:
+  postgres_data:
+```
+
+Using `pgvector/pgvector:pg16` image — has pgvector extension pre-installed; no custom init script needed.
+
+**Step 2: Verify it starts**
+
+```bash
+docker compose up -d postgres
+docker compose ps
+```
+
+Expected: postgres container in `healthy` state.
+
+**Step 3: Commit**
+
+```bash
+git add docker-compose.yml
+git commit -m "feat: add Docker Compose with pgvector/pg16 postgres"
+```
 
 ---
 
@@ -44,6 +93,7 @@ dependencies = [
     "sqlalchemy>=2.0",
     "alembic",
     "psycopg2-binary",
+    "pgvector",
     "lxml",
     "gitpython",
     "loguru",
@@ -78,6 +128,8 @@ class Settings(BaseSettings):
     LOG_LEVEL: str = "INFO"
     ETL_BATCH_SIZE: int = 100
     ETL_RATE_LIMIT_DELAY: float = 1.0
+    EMBEDDING_MODEL: str = "all-MiniLM-L6-v2"
+    EMBEDDING_DIM: int = 384
 
     class Config:
         env_file = ".env"
@@ -105,11 +157,11 @@ class Base(DeclarativeBase):
 uv run alembic init alembic
 ```
 
-Then edit `alembic/env.py` to import `Base` and use `settings.DATABASE_URL`:
+Then edit `alembic/env.py` to import `Base` and use `settings.DATABASE_URL`. Note: `app.db.models` is imported here only to register models with `Base.metadata` — it won't exist until Task 2, so don't run alembic until then.
 
 ```python
 from app.db.session import Base, engine
-from app.db import models  # noqa: F401 — must import to register models
+from app.db import models  # noqa: F401 — registers models with Base.metadata
 
 target_metadata = Base.metadata
 
@@ -190,6 +242,16 @@ def test_parse_failure_log(db):
     db.add(failure)
     db.commit()
     assert db.query(models.ParseFailure).count() == 1
+
+def test_bill_embedding_column_exists(db):
+    bill = models.Bill(
+        bill_id="118-hr-9", congress=118, bill_type="hr", bill_number=9,
+        title="Embedding Test", latest_action="", latest_action_date="2023-01-01", last_updated="2023-01-01",
+    )
+    db.add(bill)
+    db.commit()
+    result = db.query(models.Bill).filter_by(bill_id="118-hr-9").one()
+    assert result.embedding is None  # null until embedding pipeline runs
 ```
 
 **Step 2: Run the test to see it fail**
@@ -202,11 +264,15 @@ Expected: `ModuleNotFoundError: No module named 'app.db.models'`
 
 **Step 3: Create app/db/models.py**
 
+The `embedding` column uses `pgvector.sqlalchemy.Vector`. In SQLite (used for unit tests) this column type falls back to a nullable `Text` column — tests that don't touch embeddings are unaffected. The real pgvector dimension is set via `settings.EMBEDDING_DIM` (384 for `all-MiniLM-L6-v2`).
+
 ```python
 from datetime import datetime
 from sqlalchemy import Table, Column, Integer, String, DateTime, Text, ForeignKey
 from sqlalchemy.orm import relationship, Mapped, mapped_column
+from pgvector.sqlalchemy import Vector
 from app.db.session import Base
+from app.config import settings
 
 # Join tables
 bill_sponsors = Table(
@@ -233,6 +299,7 @@ class Bill(Base):
     latest_action: Mapped[str] = mapped_column(Text, nullable=True)
     latest_action_date: Mapped[str] = mapped_column(String(20), nullable=True)
     last_updated: Mapped[str] = mapped_column(String(30), nullable=True)
+    embedding: Mapped[list[float]] = mapped_column(Vector(settings.EMBEDDING_DIM), nullable=True)
 
     sponsors: Mapped[list["Sponsor"]] = relationship("Sponsor", secondary=bill_sponsors, back_populates="sponsored_bills")
     cosponsors: Mapped[list["Sponsor"]] = relationship("Sponsor", secondary=bill_cosponsors, back_populates="cosponsored_bills")
@@ -273,12 +340,21 @@ class IngestCheckpoint(Base):
 uv run pytest tests/test_models.py -v
 ```
 
-Expected: 3 PASSED
+Expected: 4 PASSED
 
-**Step 5: Generate and apply migration**
+**Step 5: Generate migration and enable pgvector extension**
+
+The migration must enable the `vector` extension before creating the `bills` table. Edit the generated migration to add this at the top of `upgrade()`:
+
+```python
+def upgrade() -> None:
+    op.execute("CREATE EXTENSION IF NOT EXISTS vector")
+    # ... rest of autogenerated table creation ...
+```
 
 ```bash
 uv run alembic revision --autogenerate -m "create bill tables"
+# Edit the generated file to add the CREATE EXTENSION line above
 uv run alembic upgrade head
 ```
 
@@ -286,7 +362,7 @@ uv run alembic upgrade head
 
 ```bash
 git add app/db/models.py alembic/versions/ tests/test_models.py
-git commit -m "feat: add bill schema (bills, sponsors, join tables, parse_failures, checkpoints)"
+git commit -m "feat: add bill schema with pgvector embedding column"
 ```
 
 ---
@@ -364,6 +440,44 @@ The BILLSTATUS XML schema from GPO looks like this (abbreviated):
 </billStatus>
 ```
 
+Also create three additional fixture files with distinct bill identities for use in integration tests:
+
+```xml
+<!-- tests/ingestion/fixtures/sample_billstatus_s5.xml -->
+<?xml version="1.0" encoding="UTF-8"?>
+<billStatus>
+  <bill>
+    <billType>S</billType>
+    <billNumber>5</billNumber>
+    <congress>118</congress>
+    <title>A Senate Bill</title>
+    <updateDate>2023-02-01T10:00:00Z</updateDate>
+    <sponsors><item><bioguideId>C000003</bioguideId><fullName>Sen. Alice Lee [D-NY]</fullName><party>D</party><state>NY</state></item></sponsors>
+    <cosponsors/>
+    <actions><item><actionDate>2023-02-01</actionDate><text>Introduced in Senate</text></item></actions>
+    <summaries><summary><text>Senate bill summary.</text></summary></summaries>
+  </bill>
+</billStatus>
+```
+
+```xml
+<!-- tests/ingestion/fixtures/sample_billstatus_hr100.xml -->
+<?xml version="1.0" encoding="UTF-8"?>
+<billStatus>
+  <bill>
+    <billType>HR</billType>
+    <billNumber>100</billNumber>
+    <congress>117</congress>
+    <title>An Older House Bill</title>
+    <updateDate>2022-06-15T10:00:00Z</updateDate>
+    <sponsors><item><bioguideId>D000004</bioguideId><fullName>Rep. Bob Ray [R-FL-3]</fullName><party>R</party><state>FL</state></item></sponsors>
+    <cosponsors/>
+    <actions><item><actionDate>2022-06-15</actionDate><text>Passed House</text></item></actions>
+    <summaries><summary><text>Older bill summary.</text></summary></summaries>
+  </bill>
+</billStatus>
+```
+
 **Step 2: Write the failing tests**
 
 ```python
@@ -386,7 +500,7 @@ def test_parses_bill_metadata():
     assert result.title == "A Bill To Test Parsing"
 
 def test_parses_latest_action():
-    """Actions must be sorted by date; latest_action is the most recent."""
+    """Actions sorted by date; latest_action is most recent."""
     result = BillStatusParser.parse(FIXTURE)
     assert result.latest_action == "Passed House"
     assert result.latest_action_date == "2023-01-15"
@@ -476,7 +590,6 @@ class BillStatusParser:
         congress = int(req("congress"))
         bill_id = f"{congress}-{bill_type}-{bill_number}"
 
-        # Latest action: sort items by actionDate, take most recent
         actions = bill.findall(".//actions/item")
         actions_sorted = sorted(
             [(a.findtext("actionDate", ""), a.findtext("text", "")) for a in actions],
@@ -620,13 +733,10 @@ Expected: `ModuleNotFoundError: No module named 'app.ingestion.db_writer'`
 ```python
 # app/ingestion/db_writer.py
 from sqlalchemy.orm import Session
-from sqlalchemy.dialects.postgresql import insert as pg_insert
-from sqlalchemy import insert as sqlite_insert
 from app.db import models
 from app.ingestion.xml_parser import ParsedBill, ParsedSponsor
 
 def _upsert_sponsor(db: Session, s: ParsedSponsor) -> None:
-    """Insert sponsor if not exists; update name/party/state if they changed."""
     existing = db.get(models.Sponsor, s.bioguide_id)
     if existing is None:
         db.add(models.Sponsor(
@@ -657,7 +767,7 @@ def upsert_bill(db: Session, parsed: ParsedBill) -> None:
             last_updated=parsed.last_updated,
         )
         db.add(bill)
-        db.flush()  # get bill into session before setting relationships
+        db.flush()
     else:
         bill = existing
         bill.title = parsed.title
@@ -666,14 +776,12 @@ def upsert_bill(db: Session, parsed: ParsedBill) -> None:
         bill.latest_action_date = parsed.latest_action_date
         bill.last_updated = parsed.last_updated
 
-    # Upsert all sponsors/cosponsors
     for s in parsed.sponsors:
         _upsert_sponsor(db, s)
     for s in parsed.cosponsors:
         _upsert_sponsor(db, s)
     db.flush()
 
-    # Rebuild relationships (clear+set is safe for moderate lists)
     bill.sponsors = [db.get(models.Sponsor, s.bioguide_id) for s in parsed.sponsors]
     bill.cosponsors = [db.get(models.Sponsor, s.bioguide_id) for s in parsed.cosponsors]
 ```
@@ -701,9 +809,7 @@ git commit -m "feat: add upsert_bill writer with sponsor deduplication"
 - Create: `app/ingestion/universe_dl.py`
 - Create: `tests/ingestion/test_universe_dl.py`
 
-`★ Insight ─────────────────────────────────────`
-The checkpoint pattern used here (storing last-processed directory path in DB) is a simple form of at-least-once delivery. If the pipeline crashes mid-batch, it reprocesses the entire last directory — that's fine because `upsert_bill` is idempotent.
-`─────────────────────────────────────────────────`
+The checkpoint pattern (storing last-processed file path in DB) is at-least-once delivery. If the pipeline crashes mid-batch it reprocesses the entire last batch — safe because `upsert_bill` is idempotent.
 
 **Step 1: Write failing tests**
 
@@ -711,7 +817,6 @@ The checkpoint pattern used here (storing last-processed directory path in DB) i
 # tests/ingestion/test_universe_dl.py
 import pytest
 from pathlib import Path
-from unittest.mock import MagicMock, patch, call
 from sqlalchemy import create_engine
 from sqlalchemy.orm import sessionmaker
 from app.db.session import Base
@@ -731,15 +836,12 @@ def db():
 
 @pytest.fixture
 def xml_corpus(tmp_path):
-    """Create a fake corpus with 3 XML files across 2 directories."""
-    (tmp_path / "118/hr/1").mkdir(parents=True)
-    (tmp_path / "118/s/1").mkdir(parents=True)
-    (tmp_path / "118/hr/1/fdsys_billstatus.xml").write_text(
-        (FIXTURE_DIR / "sample_billstatus.xml").read_text()
-    )
-    # Copy same fixture, the parser will generate same bill_id — that tests idempotency
+    """Mini corpus: 2 XML files with distinct bill identities."""
+    (tmp_path / "118/hr/1234").mkdir(parents=True)
+    (tmp_path / "118/s/5").mkdir(parents=True)
     import shutil
-    shutil.copy(FIXTURE_DIR / "sample_billstatus.xml", tmp_path / "118/s/1/fdsys_billstatus.xml")
+    shutil.copy(FIXTURE_DIR / "sample_billstatus.xml", tmp_path / "118/hr/1234/fdsys_billstatus.xml")
+    shutil.copy(FIXTURE_DIR / "sample_billstatus_s5.xml", tmp_path / "118/s/5/fdsys_billstatus.xml")
     return tmp_path
 
 def test_finds_all_xml_files(db, xml_corpus):
@@ -768,8 +870,7 @@ def test_checkpoint_saved_per_batch(db, xml_corpus):
     assert checkpoint is not None
 
 def test_resumes_from_checkpoint(db, xml_corpus):
-    """If checkpoint exists, files before that path are skipped."""
-    # Pre-set a checkpoint to the second file path (sorted)
+    """Files before the checkpoint path are skipped."""
     files = sorted(xml_corpus.rglob("*.xml"))
     checkpoint = models.IngestCheckpoint(pipeline="universe", last_processed=str(files[0]))
     db.add(checkpoint)
@@ -777,7 +878,6 @@ def test_resumes_from_checkpoint(db, xml_corpus):
 
     dl = UniverseDL(db=db, corpus_dir=xml_corpus, batch_size=10)
     stats = dl.run()
-    # Only the second file should be processed
     assert stats["processed"] == 1
 ```
 
@@ -830,12 +930,10 @@ class UniverseDL:
         self.db.commit()
 
     def run(self) -> dict:
-        """Process all XML files in corpus_dir, resuming from checkpoint if set."""
         all_files = self._enumerate_xml_files()
         checkpoint = self._get_checkpoint()
         stats = {"processed": 0, "failed": 0, "skipped": 0}
 
-        # Resume: skip everything up to and including the last checkpoint
         if checkpoint:
             try:
                 checkpoint_idx = [str(f) for f in all_files].index(checkpoint)
@@ -843,7 +941,7 @@ class UniverseDL:
                 stats["skipped"] = checkpoint_idx + 1
                 logger.info(f"Resuming from checkpoint; skipping {stats['skipped']} files.")
             except ValueError:
-                logger.warning(f"Checkpoint path not found in corpus; starting from beginning.")
+                logger.warning("Checkpoint path not found in corpus; starting from beginning.")
 
         batch: list[Path] = []
         for xml_file in all_files:
@@ -871,7 +969,6 @@ class UniverseDL:
                 self._log_failure(xml_file, e)
                 stats["failed"] += 1
                 logger.warning(f"Failed to parse {xml_file}: {e}")
-        # Save checkpoint at end of each batch (last file in batch)
         if batch:
             self._save_checkpoint(str(batch[-1]))
 ```
@@ -899,9 +996,7 @@ git commit -m "feat: add Universe DL pipeline with checkpointing and dead-letter
 - Create: `app/ingestion/daily_dl.py`
 - Create: `tests/ingestion/test_daily_dl.py`
 
-`★ Insight ─────────────────────────────────────`
-Using `git diff --name-status HEAD@{1} HEAD` (reflog-based) vs `HEAD~1..HEAD` (commit-based): The reflog version (`HEAD@{1}`) catches all changes since the last time HEAD moved — including after a `git pull`. This is more robust than `HEAD~1` which would only see one commit at a time if multiple commits were pulled.
-`─────────────────────────────────────────────────`
+Using `git diff --name-status HEAD@{1} HEAD` (reflog-based) rather than `HEAD~1..HEAD` (commit-based): the reflog version catches all changes since the last time HEAD moved, including after a `git pull` with multiple commits. More robust for the real daily-pull workflow.
 
 **Step 1: Write failing tests**
 
@@ -909,7 +1004,6 @@ Using `git diff --name-status HEAD@{1} HEAD` (reflog-based) vs `HEAD~1..HEAD` (c
 # tests/ingestion/test_daily_dl.py
 import pytest
 from pathlib import Path
-from unittest.mock import MagicMock, patch
 from sqlalchemy import create_engine
 from sqlalchemy.orm import sessionmaker
 from app.db.session import Base
@@ -930,14 +1024,14 @@ def db():
 def test_parses_git_diff_output():
     raw = "A\tdata/bills/118/hr/1/fdsys_billstatus.xml\nM\tdata/bills/118/s/5/fdsys_billstatus.xml\nD\tdata/bills/old/file.xml"
     entries = DailyDL._parse_diff_output(raw)
-    assert len(entries) == 2  # D (deleted) is ignored
+    assert len(entries) == 2  # D (deleted) ignored
     assert entries[0] == DiffEntry(status="A", path=Path("data/bills/118/hr/1/fdsys_billstatus.xml"))
     assert entries[1] == DiffEntry(status="M", path=Path("data/bills/118/s/5/fdsys_billstatus.xml"))
 
 def test_only_processes_xml_files():
     raw = "A\tdata/bills/118/hr/1/fdsys_billstatus.xml\nM\tdata/bills/118/hr/2/README.md"
     entries = DailyDL._parse_diff_output(raw)
-    assert len(entries) == 1  # README.md filtered out
+    assert len(entries) == 1
 
 def test_insert_on_added(db, tmp_path):
     import shutil
@@ -956,11 +1050,19 @@ def test_update_on_modified(db, tmp_path):
     bill_path = tmp_path / "fdsys_billstatus.xml"
     shutil.copy(FIXTURE_DIR / "sample_billstatus.xml", bill_path)
 
+    # Pre-insert so the bill exists — "M" means it was already in the repo
+    from app.ingestion.xml_parser import BillStatusParser
+    from app.ingestion.db_writer import upsert_bill
+    parsed = BillStatusParser.parse(bill_path)
+    upsert_bill(db, parsed)
+    db.commit()
+
     entries = [DiffEntry(status="M", path=bill_path)]
     dl = DailyDL(db=db, repo_path=tmp_path)
     stats = dl._process_entries(entries)
 
     assert stats["updated"] == 1
+    assert db.query(models.Bill).count() == 1  # still 1, not 2
 
 def test_failed_parse_goes_to_dead_letter(db, tmp_path):
     bad_xml = tmp_path / "bad.xml"
@@ -1006,10 +1108,7 @@ class DailyDL:
 
     @staticmethod
     def _parse_diff_output(raw: str) -> list[DiffEntry]:
-        """Parse `git diff --name-status` output into DiffEntry list.
-
-        Ignores deletions (D) and non-XML files.
-        """
+        """Parse `git diff --name-status` output. Ignores deletions and non-XML files."""
         entries = []
         for line in raw.strip().splitlines():
             parts = line.split("\t", 1)
@@ -1025,7 +1124,6 @@ class DailyDL:
         return entries
 
     def _get_changed_files(self) -> list[DiffEntry]:
-        """Run git diff to find files changed since last pull."""
         result = subprocess.run(
             ["git", "diff", "--name-status", "HEAD@{1}", "HEAD"],
             cwd=self.repo_path,
@@ -1038,7 +1136,6 @@ class DailyDL:
     def _process_entries(self, entries: list[DiffEntry]) -> dict:
         stats = {"inserted": 0, "updated": 0, "failed": 0}
         for entry in entries:
-            # Resolve relative paths against repo root if needed
             path = entry.path if entry.path.is_absolute() else self.repo_path / entry.path
             try:
                 parsed = BillStatusParser.parse(path)
@@ -1059,7 +1156,6 @@ class DailyDL:
         return stats
 
     def run(self) -> dict:
-        """Pull updates and process git diff."""
         logger.info("Daily DL: fetching changed files from git diff...")
         entries = self._get_changed_files()
         logger.info(f"Found {len(entries)} changed XML files.")
@@ -1086,8 +1182,6 @@ git commit -m "feat: add Daily DL pipeline with git-diff delta detection and dea
 ---
 
 ### Task 7: CLI Entry Points
-
-Wire everything into Typer CLI commands so both pipelines can be invoked from the terminal.
 
 **Files:**
 - Create: `app/cli.py`
@@ -1120,7 +1214,6 @@ def universe_dl(
     logger.info(f"Starting Universe DL from {corpus_dir} (batch_size={batch_size})")
     with SessionLocal() as db:
         if not resume:
-            # Clear any existing checkpoint
             from app.db import models
             db.query(models.IngestCheckpoint).filter_by(pipeline="universe").delete()
             db.commit()
@@ -1154,11 +1247,8 @@ if __name__ == "__main__":
 **Step 2: Test the CLI manually**
 
 ```bash
-# Universe DL (dry-run with an empty dir to confirm it exits gracefully)
 mkdir -p /tmp/empty-corpus
 uv run python -m app.cli universe-dl /tmp/empty-corpus
-
-# Help text
 uv run python -m app.cli --help
 ```
 
@@ -1178,6 +1268,8 @@ git commit -m "feat: add Typer CLI for universe-dl and daily-dl commands"
 
 **Step 1: Write integration test**
 
+The corpus fixture uses three distinct fixture XMLs (hr-1234, s-5, hr-100) so each parses to a unique `bill_id`. The fourth file is intentionally malformed to test the dead-letter path.
+
 ```python
 # tests/ingestion/test_integration.py
 """Integration test: runs the full Universe DL pipeline on a small fixture corpus."""
@@ -1190,15 +1282,21 @@ from app.db.session import Base
 from app.db import models  # noqa
 from app.ingestion.universe_dl import UniverseDL
 
-FIXTURE = Path(__file__).parent / "fixtures" / "sample_billstatus.xml"
+FIXTURE_DIR = Path(__file__).parent / "fixtures"
 
 @pytest.fixture
 def corpus(tmp_path):
-    """Build a mini corpus: 3 valid bills + 1 invalid XML."""
-    for congress, bill_type, number in [(118, "hr", 1), (118, "s", 5), (117, "hr", 100)]:
-        path = tmp_path / str(congress) / bill_type / str(number)
+    """3 valid bills with distinct identities + 1 invalid XML."""
+    cases = [
+        ("118/hr/1234", "sample_billstatus.xml"),
+        ("118/s/5",     "sample_billstatus_s5.xml"),
+        ("117/hr/100",  "sample_billstatus_hr100.xml"),
+    ]
+    for subdir, fixture in cases:
+        path = tmp_path / subdir
         path.mkdir(parents=True)
-        shutil.copy(FIXTURE, path / "fdsys_billstatus.xml")
+        shutil.copy(FIXTURE_DIR / fixture, path / "fdsys_billstatus.xml")
+
     bad = tmp_path / "bad"
     bad.mkdir()
     (bad / "fdsys_billstatus.xml").write_text("<billStatus><bill></bill></billStatus>")
@@ -1223,11 +1321,10 @@ def test_universe_dl_full_run(db, corpus):
     assert db.query(models.ParseFailure).count() == 1
 
 def test_universe_dl_is_idempotent(db, corpus):
-    """Running twice should not duplicate bills."""
+    """Running twice must not duplicate bills."""
     dl = UniverseDL(db=db, corpus_dir=corpus, batch_size=10)
     dl.run()
 
-    # Clear checkpoint so it re-processes everything
     db.query(models.IngestCheckpoint).delete()
     db.commit()
 
@@ -1251,7 +1348,7 @@ Expected: 2 PASSED
 uv run pytest -v
 ```
 
-Expected: All tests green.
+Expected: All green.
 
 **Step 4: Final commit**
 
@@ -1267,13 +1364,14 @@ git commit -m "test: add integration tests for Universe DL pipeline"
 ### Universe DL (one-time bulk load)
 
 ```bash
-# 1. Download the corpus (requires congress tool installed)
-usc-run govinfo --bulkdata=BILLSTATUS
-
-# 2. Apply DB migrations
+# 1. Start DB
+docker compose up -d postgres
 uv run alembic upgrade head
 
-# 3. Run the pipeline
+# 2. Download the corpus
+usc-run govinfo --bulkdata=BILLSTATUS
+
+# 3. Run
 uv run python -m app.cli universe-dl /path/to/congress/data/bills/
 ```
 
@@ -1287,7 +1385,7 @@ cd /path/to/congress && usc-run bills
 uv run python -m app.cli daily-dl /path/to/congress/
 ```
 
-### Cron Setup (example)
+### Cron Setup
 
 ```cron
 # Daily DL at 02:00 UTC
@@ -1298,6 +1396,6 @@ uv run python -m app.cli daily-dl /path/to/congress/
 
 ## Open Questions / Deferred Scope
 
-1. **Search index update:** The design doc calls for Elasticsearch; the project config uses pgvector. The CLI's `run()` methods return `stats` dicts — add a post-run hook here when the search layer is decided.
-2. **Embeddings:** Once bills are in the DB, run `sentence-transformers` to generate and store embeddings (separate pipeline task).
-3. **Docker Compose:** Add a `universe-dl` and `daily-dl` service definition to `docker-compose.yml` for containerized execution.
+1. **Embedding pipeline:** Bills land in DB with `embedding = NULL`. Next step: separate pipeline runs `sentence-transformers` over `bills` rows where `embedding IS NULL` and writes the vector back.
+2. **pgvector index:** After bulk load, add `CREATE INDEX ON bills USING ivfflat (embedding vector_cosine_ops)` for fast similarity search.
+3. **Docker Compose services:** Add `universe-dl` and `daily-dl` one-shot service definitions for containerized execution.
