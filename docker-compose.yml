@@ -1,0 +1,63 @@
+services:
+  postgres:
+    image: postgres:16.13
+    environment:
+      POSTGRES_USER: ${POSTGRES_USER:-billchatbot}
+      POSTGRES_PASSWORD: ${POSTGRES_PASSWORD:-billchatbot_dev_password}
+      POSTGRES_DB: ${POSTGRES_DB:-billchatbot}
+    ports:
+      - "${POSTGRES_PORT:-5432}:5432"
+    volumes:
+      - postgres_data:/var/lib/postgresql/data
+    healthcheck:
+      test: ["CMD-SHELL", "pg_isready -U ${POSTGRES_USER:-billchatbot}"]
+      interval: 5s
+      timeout: 5s
+      retries: 5
+
+  # migrate: run migrations in isolation with: docker compose --profile etl run --rm migrate
+  migrate:
+    build: .
+    command: uv run alembic upgrade head
+    environment:
+      DATABASE_URL: postgresql://${POSTGRES_USER:-billchatbot}:${POSTGRES_PASSWORD:-billchatbot_dev_password}@postgres:5432/${POSTGRES_DB:-billchatbot}
+    depends_on:
+      postgres:
+        condition: service_healthy
+    restart: "no"
+    profiles: [etl, universe-dl, daily-dl]
+
+  universe-dl:
+    build: .
+    command: uv run python -m app.cli universe-dl /data/corpus
+    environment:
+      DATABASE_URL: postgresql://${POSTGRES_USER:-billchatbot}:${POSTGRES_PASSWORD:-billchatbot_dev_password}@postgres:5432/${POSTGRES_DB:-billchatbot}
+      ETL_BATCH_SIZE: ${ETL_BATCH_SIZE:-100}
+    volumes:
+      - ${CORPUS_DIR:?Set CORPUS_DIR in .env to the host path of the BILLSTATUS corpus}:/data/corpus:ro
+    depends_on:
+      postgres:
+        condition: service_healthy
+      migrate:
+        condition: service_completed_successfully
+    restart: "no"
+    profiles: [universe-dl]
+
+  daily-dl:
+    build: .
+    command: uv run python -m app.cli daily-dl /data/repo
+    environment:
+      DATABASE_URL: postgresql://${POSTGRES_USER:-billchatbot}:${POSTGRES_PASSWORD:-billchatbot_dev_password}@postgres:5432/${POSTGRES_DB:-billchatbot}
+    volumes:
+      # Not :ro — git diff HEAD@{1} may write reflog/lock files inside .git/
+      - ${REPO_PATH:?Set REPO_PATH in .env to the host path of the congress git repo}:/data/repo
+    depends_on:
+      postgres:
+        condition: service_healthy
+      migrate:
+        condition: service_completed_successfully
+    restart: "no"
+    profiles: [daily-dl]
+
+volumes:
+  postgres_data:
