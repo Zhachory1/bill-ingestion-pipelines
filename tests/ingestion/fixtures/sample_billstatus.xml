@@ -37,5 +37,12 @@
         <text>This bill does a thing.</text>
       </summary>
     </summaries>
+    <introducedDate>2023-01-10</introducedDate>
+    <subjects>
+      <legislativeSubjects>
+        <item><name>Health care</name></item>
+        <item><name>Taxation</name></item>
+      </legislativeSubjects>
+    </subjects>
   </bill>
 </billStatus>

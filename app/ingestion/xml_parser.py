@@ -22,8 +22,24 @@ class ParsedBill:
     latest_action: str | None
     latest_action_date: str | None
     last_updated: str | None
+    introduced_date: str | None = None
+    chamber: str | None = None
+    bill_url: str | None = None
+    subjects: list[str] = field(default_factory=list)
     sponsors: list[ParsedSponsor] = field(default_factory=list)
     cosponsors: list[ParsedSponsor] = field(default_factory=list)
+
+
+_BILL_TYPE_URL_MAP = {
+    "hr": "house-bill",
+    "s": "senate-bill",
+    "hres": "house-resolution",
+    "sres": "senate-resolution",
+    "hjres": "house-joint-resolution",
+    "sjres": "senate-joint-resolution",
+    "hconres": "house-concurrent-resolution",
+    "sconres": "senate-concurrent-resolution",
+}
 
 
 class BillStatusParser:
@@ -50,6 +66,17 @@ class BillStatusParser:
         bill_number = int(req("billNumber"))
         congress = int(req("congress"))
         bill_id = f"{congress}-{bill_type}-{bill_number}"
+
+        introduced_date = opt("introducedDate")
+        chamber = "House" if bill_type.startswith("h") else "Senate" if bill_type.startswith("s") else None
+        readable_type = _BILL_TYPE_URL_MAP.get(bill_type, bill_type)
+        bill_url = f"https://www.congress.gov/bill/{congress}th-congress/{readable_type}/{bill_number}"
+
+        subjects = [
+            el.text.strip()
+            for el in bill.findall(".//subjects/legislativeSubjects/item/name")
+            if el.text
+        ]
 
         # Latest action: sort items by actionDate, take most recent
         actions = bill.findall(".//actions/item")
@@ -82,6 +109,10 @@ class BillStatusParser:
             latest_action=latest_action or None,
             latest_action_date=latest_action_date or None,
             last_updated=opt("updateDate"),
+            introduced_date=introduced_date,
+            chamber=chamber,
+            bill_url=bill_url,
+            subjects=subjects,
             sponsors=parse_sponsors("sponsors"),
             cosponsors=parse_sponsors("cosponsors"),
         )
