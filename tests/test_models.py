@@ -63,3 +63,46 @@ def test_bill_embedding_column_exists(db):
     db.commit()
     result = db.query(models.Bill).filter_by(bill_id="118-hr-9").one()
     assert result.embedding is None  # null until embedding pipeline runs
+
+
+def test_bill_new_fields(db):
+    bill = models.Bill(
+        bill_id="118-hr-99", congress=118, bill_type="hr", bill_number=99,
+        title="Test", latest_action="", latest_action_date="2023-01-01",
+        last_updated="2023-01-01",
+        introduced_date="2023-01-05",
+        chamber="House",
+        bill_url="https://www.congress.gov/bill/118th-congress/house-bill/99",
+    )
+    db.add(bill)
+    db.commit()
+    result = db.query(models.Bill).filter_by(bill_id="118-hr-99").one()
+    assert result.introduced_date == "2023-01-05"
+    assert result.chamber == "House"
+    assert result.bill_url == "https://www.congress.gov/bill/118th-congress/house-bill/99"
+
+
+def test_legislative_subjects(db):
+    bill = models.Bill(
+        bill_id="118-hr-55", congress=118, bill_type="hr", bill_number=55,
+        title="Health Bill", latest_action="", latest_action_date="2023-01-01",
+        last_updated="2023-01-01",
+    )
+    subject = models.LegislativeSubject(name="Health care")
+    bill.subjects.append(subject)
+    db.add(bill)
+    db.commit()
+    result = db.query(models.Bill).filter_by(bill_id="118-hr-55").one()
+    assert len(result.subjects) == 1
+    assert result.subjects[0].name == "Health care"
+
+
+def test_subject_unique_constraint_enforced(db):
+    """Unique constraint on name must reject raw duplicate inserts."""
+    from sqlalchemy.exc import IntegrityError
+    db.add(models.LegislativeSubject(name="Taxation"))
+    db.commit()
+    db.add(models.LegislativeSubject(name="Taxation"))
+    with pytest.raises(IntegrityError):
+        db.commit()
+    db.rollback()
