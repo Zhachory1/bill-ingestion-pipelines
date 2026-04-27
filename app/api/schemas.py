@@ -1,6 +1,7 @@
 """Pydantic response models for the bill retrieval API."""
 
-from pydantic import BaseModel
+from typing import Literal
+from pydantic import BaseModel, model_validator
 
 
 class SponsorOut(BaseModel):
@@ -70,3 +71,23 @@ class BillSummaryOut(BaseModel):
 class SearchResponse(BaseModel):
     query: str
     results: list[BillSummaryOut]
+
+
+class ChatMessage(BaseModel):
+    role: Literal["user", "assistant"]
+    content: str
+
+
+class ChatRequest(BaseModel):
+    messages: list[ChatMessage]
+
+    @model_validator(mode="after")
+    def messages_not_empty(self) -> "ChatRequest":
+        if not self.messages:
+            raise ValueError("messages must not be empty")
+        return self
+
+
+class ChatResponse(BaseModel):
+    bill_id: str
+    response: str
