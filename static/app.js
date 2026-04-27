@@ -345,12 +345,24 @@ async function initBillDetails(billId) {
             else { linkEl.hidden = true; }
         }
 
-        // Summary
-        if (bill.summary) {
-            const summaryEl = document.getElementById('detail-summary');
-            if (summaryEl) summaryEl.textContent = stripHtml(bill.summary);
-            const summarySection = document.getElementById('summary-section');
-            if (summarySection) summarySection.hidden = false;
+        // Chatbot context — fetch from /api/bills/{id}/text
+        const contextEl = document.getElementById('detail-context');
+        if (contextEl) {
+            try {
+                const textResp = await fetch('/api/bills/' + encodeURIComponent(billId) + '/text');
+                if (textResp.ok) {
+                    const textData = await textResp.json();
+                    const contextText = stripHtml(textData.text || '');
+                    contextEl.textContent = contextText || 'No text available for this bill.';
+                    if (!contextText) contextEl.classList.add('no-context');
+                } else {
+                    contextEl.textContent = 'Could not load bill text.';
+                    contextEl.classList.add('no-context');
+                }
+            } catch (_) {
+                contextEl.textContent = 'Could not load bill text.';
+                contextEl.classList.add('no-context');
+            }
         }
 
         // Latest action
