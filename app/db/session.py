@@ -1,3 +1,5 @@
+"""SQLAlchemy engine and session factory shared across the application."""
+
 from sqlalchemy import create_engine
 from sqlalchemy.orm import sessionmaker, DeclarativeBase
 from app.config import settings
@@ -7,4 +9,4 @@ SessionLocal = sessionmaker(bind=engine, autocommit=False, autoflush=False)
 
 
 class Base(DeclarativeBase):
-    pass
+    """Base class for all ORM models."""

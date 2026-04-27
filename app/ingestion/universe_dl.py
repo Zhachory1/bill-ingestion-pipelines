@@ -1,3 +1,5 @@
+"""Bulk ingestion pipeline for the BILLSTATUS XML corpus (universe download)."""
+
 from dataclasses import dataclass
 from pathlib import Path
 from loguru import logger

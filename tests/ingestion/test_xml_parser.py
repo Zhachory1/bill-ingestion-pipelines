@@ -46,6 +46,47 @@ def test_parses_summary():
 def test_raises_on_missing_required_field(tmp_path):
     """Parser must raise ValueError (not silently produce garbage) if billType is missing."""
     bad_xml = tmp_path / "bad.xml"
-    bad_xml.write_text("<billStatus><bill><billNumber>1</billNumber></bill></billStatus>")
-    with pytest.raises(ValueError, match="billType"):
+    bad_xml.write_text("<billStatus><bill><number>1</number></bill></billStatus>")
+    with pytest.raises(ValueError, match="type"):
         BillStatusParser.parse(bad_xml)
+
+
+def test_raises_when_no_bill_element(tmp_path):
+    """Parser must raise ValueError if the XML has no <bill> element at all."""
+    bad_xml = tmp_path / "empty.xml"
+    bad_xml.write_text("<billStatus></billStatus>")
+    with pytest.raises(ValueError, match="No <bill> element"):
+        BillStatusParser.parse(bad_xml)
+
+
+def test_parses_introduced_date():
+    result = BillStatusParser.parse(FIXTURE)
+    assert result.introduced_date == "2023-01-10"
+
+
+def test_parses_chamber_house():
+    result = BillStatusParser.parse(FIXTURE)  # billType=HR → House
+    assert result.chamber == "House"
+
+
+def test_parses_bill_url():
+    result = BillStatusParser.parse(FIXTURE)
+    assert result.bill_url == "https://www.congress.gov/bill/118th-congress/house-bill/1234"
+
+
+def test_parses_subjects():
+    result = BillStatusParser.parse(FIXTURE)
+    assert sorted(result.subjects) == ["Health care", "Taxation"]
+
+
+def test_chamber_senate(tmp_path):
+    senate_xml = tmp_path / "senate.xml"
+    senate_xml.write_text("""<?xml version="1.0" encoding="UTF-8"?>
+<billStatus><bill>
+  <type>S</type><number>5</number><congress>118</congress>
+  <title>A Senate Bill</title><updateDate>2023-01-01T00:00:00Z</updateDate>
+  <sponsors/><cosponsors/><actions/><summaries/>
+</bill></billStatus>""")
+    result = BillStatusParser.parse(senate_xml)
+    assert result.chamber == "Senate"
+    assert result.bill_url == "https://www.congress.gov/bill/118th-congress/senate-bill/5"

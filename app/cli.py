@@ -51,5 +51,21 @@ def daily_dl(
     typer.echo(f"Done: {stats}")
 
 
+@app.command()
+def embed_bills(
+    batch_size: int = typer.Option(settings.ETL_BATCH_SIZE, help="Bills per encoding batch"),
+    model: str = typer.Option(settings.EMBEDDING_MODEL, help="SentenceTransformer model name"),
+):
+    """Generate and store embeddings for bills with null embedding."""
+    from app.ingestion.embedding_pipeline import EmbeddingPipeline
+
+    logger.info(f"Starting embedding pipeline (batch_size={batch_size}, model={model})")
+    with SessionLocal() as db:
+        pipeline = EmbeddingPipeline(db=db, model_name=model, batch_size=batch_size)
+        stats = pipeline.run()
+
+    typer.echo(f"Done: {stats}")
+
+
 if __name__ == "__main__":
     app()
