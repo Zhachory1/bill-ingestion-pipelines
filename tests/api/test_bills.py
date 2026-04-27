@@ -160,3 +160,94 @@ def test_fulltext_collapses_whitespace(client, db):
     assert "  " not in data["text"]
     assert "Hello" in data["text"]
     assert "World" in data["text"]
+
+
+# ---------------------------------------------------------------------------
+# Similar bills endpoint
+# ---------------------------------------------------------------------------
+
+def test_get_similar_bills_returns_200(client, db):
+    """Bill with embedding returns 200 and a list."""
+    import numpy as np
+    from app.db.models import Bill
+    vec = np.random.rand(384).tolist()
+    bill = Bill(
+        bill_id="test-similar-1", congress=118, bill_type="hr", bill_number=9001,
+        title="Source Bill", embedding=vec,
+    )
+    db.add(bill)
+    neighbour = Bill(
+        bill_id="test-similar-2", congress=118, bill_type="hr", bill_number=9002,
+        title="Neighbour Bill", embedding=vec,
+    )
+    db.add(neighbour)
+    db.commit()
+
+    resp = client.get(f"/api/bills/test-similar-1/similar")
+    assert resp.status_code == 200
+    data = resp.json()
+    assert isinstance(data, list)
+    ids = [r["bill_id"] for r in data]
+    assert "test-similar-1" not in ids
+
+
+def test_get_similar_bills_excludes_self(client, db):
+    """Source bill never appears in its own similar results."""
+    import numpy as np
+    from app.db.models import Bill
+    vec = np.random.rand(384).tolist()
+    bill = Bill(
+        bill_id="test-self-excl", congress=118, bill_type="hr", bill_number=9003,
+        title="Self Exclusion Test", embedding=vec,
+    )
+    db.add(bill)
+    db.commit()
+
+    resp = client.get("/api/bills/test-self-excl/similar")
+    assert resp.status_code == 200
+    ids = [r["bill_id"] for r in resp.json()]
+    assert "test-self-excl" not in ids
+
+
+def test_get_similar_bills_no_embedding_returns_404(client, db):
+    """Bill with no embedding returns 404."""
+    from app.db.models import Bill
+    bill = Bill(
+        bill_id="test-no-embed", congress=118, bill_type="hr", bill_number=9004,
+        title="No Embedding Bill", embedding=None,
+    )
+    db.add(bill)
+    db.commit()
+
+    resp = client.get("/api/bills/test-no-embed/similar")
+    assert resp.status_code == 404
+
+
+def test_get_similar_bills_not_found_returns_404(client):
+    """Non-existent bill_id returns 404."""
+    resp = client.get("/api/bills/does-not-exist-xyz/similar")
+    assert resp.status_code == 404
+
+
+def test_get_similar_bills_respects_limit(client, db):
+    """Limit param caps the result count."""
+    import numpy as np
+    from app.db.models import Bill
+    vec = np.random.rand(384).tolist()
+    source = Bill(
+        bill_id="test-limit-src", congress=118, bill_type="hr", bill_number=9010,
+        title="Limit Source", embedding=vec,
+    )
+    db.add(source)
+    for i in range(5):
+        neighbour = Bill(
+            bill_id=f"test-limit-n{i}", congress=118, bill_type="hr",
+            bill_number=9011 + i, title=f"Neighbour {i}",
+            embedding=np.random.rand(384).tolist(),
+        )
+        db.add(neighbour)
+    db.commit()
+
+    resp = client.get("/api/bills/test-limit-src/similar?limit=3")
+    assert resp.status_code == 200
+    assert len(resp.json()) <= 3

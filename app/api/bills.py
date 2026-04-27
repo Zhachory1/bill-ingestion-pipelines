@@ -5,10 +5,11 @@ import re
 import httpx
 from loguru import logger
 from lxml import etree  # type: ignore
-from fastapi import APIRouter, Depends, HTTPException
+from fastapi import APIRouter, Depends, HTTPException, Query
+from sqlalchemy import text
 from sqlalchemy.orm import Session, joinedload
 from app.api.deps import get_db
-from app.api.schemas import BillOut, BillTextOut, BillFullTextOut
+from app.api.schemas import BillOut, BillTextOut, BillFullTextOut, BillSummaryOut
 from app.db import models
 
 
@@ -117,3 +118,77 @@ def get_bill_fulltext(bill_id: str, db: Session = Depends(get_db)):
         raise HTTPException(status_code=502, detail="Failed to fetch bill text from govinfo.gov")
 
     return BillFullTextOut(bill_id=bill_id, text_url=html_url, text=text)
+
+
+def _cosine_similarity(a: list[float], b: list[float]) -> float:
+    """Pure-Python cosine similarity for SQLite fallback."""
+    import math
+    dot = sum(x * y for x, y in zip(a, b))
+    norm_a = math.sqrt(sum(x * x for x in a))
+    norm_b = math.sqrt(sum(x * x for x in b))
+    if norm_a == 0 or norm_b == 0:
+        return 0.0
+    return dot / (norm_a * norm_b)
+
+
+@router.get("/bills/{bill_id}/similar", response_model=list[BillSummaryOut])
+def get_similar_bills(
+    bill_id: str,
+    limit: int = Query(10, ge=1, le=10),
+    db: Session = Depends(get_db),
+):
+    """Return up to 10 bills most similar to the given bill using pgvector cosine similarity.
+
+    Requires the bill to have an embedding; returns 404 if not.
+    The source bill is excluded from results.
+    Uses pgvector on PostgreSQL; falls back to Python cosine similarity on SQLite (tests).
+    """
+    bill = _get_bill_or_404(db, bill_id)
+    if bill.embedding is None:
+        raise HTTPException(status_code=404, detail="No embedding available for this bill")
+
+    dialect = db.bind.dialect.name if db.bind else "unknown"
+
+    if dialect == "postgresql":
+        rows = db.execute(
+            text(
+                "SELECT bill_id, 1 - (embedding <=> CAST(:vec AS vector)) AS score "
+                "FROM bills WHERE embedding IS NOT NULL AND bill_id != :bill_id "
+                "ORDER BY embedding <=> CAST(:vec AS vector) "
+                "LIMIT :limit"
+            ),
+            {"vec": str(list(bill.embedding)), "limit": limit, "bill_id": bill_id},
+        ).fetchall()
+        search_rows = [{"bill_id": row.bill_id, "score": float(row.score)} for row in rows]
+    else:
+        # SQLite fallback: load all embeddings and rank in Python
+        candidates = (
+            db.query(models.Bill)
+            .filter(models.Bill.bill_id != bill_id, models.Bill.embedding.isnot(None))
+            .all()
+        )
+        scored = [
+            {"bill_id": c.bill_id, "score": _cosine_similarity(bill.embedding, c.embedding)}
+            for c in candidates
+        ]
+        scored.sort(key=lambda r: r["score"], reverse=True)
+        search_rows = scored[:limit]
+
+    bill_ids = [r["bill_id"] for r in search_rows]
+    scores = {r["bill_id"]: r["score"] for r in search_rows}
+    bills = db.query(models.Bill).filter(models.Bill.bill_id.in_(bill_ids)).all()
+    bill_map = {b.bill_id: b for b in bills}
+
+    return [
+        BillSummaryOut(
+            bill_id=bid,
+            title=bill_map[bid].title,
+            summary=bill_map[bid].summary,
+            chamber=bill_map[bid].chamber,
+            introduced_date=bill_map[bid].introduced_date,
+            bill_url=bill_map[bid].bill_url,
+            score=scores[bid],
+        )
+        for bid in bill_ids
+        if bid in bill_map
+    ]
