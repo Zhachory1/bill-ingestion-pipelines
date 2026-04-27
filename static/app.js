@@ -25,6 +25,16 @@ function escapeHtml(text) {
 }
 
 /**
+ * Strip HTML tags from text (summaries from Congress.gov contain markup).
+ * @param {string} text
+ * @returns {string}
+ */
+function stripHtml(text) {
+    if (!text) return '';
+    return text.replace(/<[^>]+>/g, ' ').replace(/\s+/g, ' ').trim();
+}
+
+/**
  * Validate that a URL uses http: or https: before using it in an href.
  * @param {string} url
  * @returns {string}
@@ -105,8 +115,9 @@ function renderResults(results, container) {
         const title = escapeHtml(bill.title || 'Untitled');
         const chamber = escapeHtml(bill.chamber || '');
         const date = escapeHtml(bill.introduced_date || '');
+        const rawSummary = stripHtml(bill.summary || '');
         const summary = escapeHtml(
-            (bill.summary || '').substring(0, 200) + ((bill.summary || '').length > 200 ? '...' : '')
+            rawSummary.substring(0, 200) + (rawSummary.length > 200 ? '...' : '')
         );
 
         // Chat page link — use bill_id path param, never user-supplied raw URL for routing
@@ -172,6 +183,11 @@ async function initChat(billId) {
         const bill = await resp.json();
         if (titleEl) {
             titleEl.textContent = bill.title || billId;
+        }
+        const detailLink = document.getElementById('bill-detail-link');
+        if (detailLink) {
+            detailLink.href = '/bill.html?bill_id=' + encodeURIComponent(billId);
+            detailLink.hidden = false;
         }
         if (chatSection) chatSection.hidden = false;
     } catch (err) {
@@ -282,6 +298,117 @@ async function sendMessage(billId, messages) {
 }
 
 // ---------------------------------------------------------------------------
+// Bill detail page (bill.html)
+// ---------------------------------------------------------------------------
+
+/**
+ * Initialise the bill detail page: fetch full bill data and render all sections.
+ * @param {string} billId
+ */
+async function initBillDetails(billId) {
+    const loadingEl = document.getElementById('loading');
+    const errorEl = document.getElementById('error');
+    const detailEl = document.getElementById('bill-detail');
+
+    if (!billId) {
+        if (errorEl) { errorEl.textContent = 'No bill_id in URL.'; errorEl.hidden = false; }
+        if (loadingEl) loadingEl.hidden = true;
+        return;
+    }
+
+    try {
+        const resp = await fetch('/api/bills/' + encodeURIComponent(billId));
+        if (!resp.ok) throw new Error('Bill not found (status ' + resp.status + ')');
+        const bill = await resp.json();
+
+        // Title + meta
+        const titleEl = document.getElementById('detail-title');
+        if (titleEl) titleEl.textContent = bill.title || billId;
+        document.title = bill.title || billId;
+
+        const chamberEl = document.getElementById('detail-chamber');
+        if (chamberEl && bill.chamber) chamberEl.textContent = bill.chamber;
+        else if (chamberEl) chamberEl.hidden = true;
+
+        const congressEl = document.getElementById('detail-congress');
+        if (congressEl && bill.congress) congressEl.textContent = bill.congress + 'th Congress';
+        else if (congressEl) congressEl.hidden = true;
+
+        const dateEl = document.getElementById('detail-date');
+        if (dateEl && bill.introduced_date) dateEl.textContent = 'Introduced ' + bill.introduced_date;
+        else if (dateEl) dateEl.hidden = true;
+
+        const linkEl = document.getElementById('detail-congress-link');
+        if (linkEl) {
+            const safe = safeUrl(bill.bill_url);
+            if (safe !== '#') { linkEl.href = safe; }
+            else { linkEl.hidden = true; }
+        }
+
+        // Summary
+        if (bill.summary) {
+            const summaryEl = document.getElementById('detail-summary');
+            if (summaryEl) summaryEl.textContent = stripHtml(bill.summary);
+            const summarySection = document.getElementById('summary-section');
+            if (summarySection) summarySection.hidden = false;
+        }
+
+        // Latest action
+        if (bill.latest_action) {
+            const actionEl = document.getElementById('detail-action');
+            if (actionEl) {
+                actionEl.textContent = bill.latest_action +
+                    (bill.latest_action_date ? ' (' + bill.latest_action_date + ')' : '');
+            }
+            const actionSection = document.getElementById('action-section');
+            if (actionSection) actionSection.hidden = false;
+        }
+
+        // Sponsors
+        if (bill.sponsors && bill.sponsors.length) {
+            const list = document.getElementById('detail-sponsors');
+            if (list) list.innerHTML = bill.sponsors.map(_renderPerson).join('');
+            const section = document.getElementById('sponsors-section');
+            if (section) section.hidden = false;
+        }
+
+        // Cosponsors
+        if (bill.cosponsors && bill.cosponsors.length) {
+            const list = document.getElementById('detail-cosponsors');
+            if (list) list.innerHTML = bill.cosponsors.map(_renderPerson).join('');
+            const countEl = document.getElementById('cosponsor-count');
+            if (countEl) countEl.textContent = bill.cosponsors.length;
+            const section = document.getElementById('cosponsors-section');
+            if (section) section.hidden = false;
+        }
+
+        // Subjects
+        if (bill.subjects && bill.subjects.length) {
+            const list = document.getElementById('detail-subjects');
+            if (list) list.innerHTML = bill.subjects
+                .map(function (s) { return '<li>' + escapeHtml(s) + '</li>'; })
+                .join('');
+            const section = document.getElementById('subjects-section');
+            if (section) section.hidden = false;
+        }
+
+        if (detailEl) detailEl.hidden = false;
+    } catch (err) {
+        if (errorEl) { errorEl.textContent = err.message; errorEl.hidden = false; }
+    } finally {
+        if (loadingEl) loadingEl.hidden = true;
+    }
+}
+
+function _renderPerson(p) {
+    const name = escapeHtml(p.full_name || p.bioguide_id);
+    const party = p.party ? escapeHtml(p.party) : '';
+    const state = p.state ? escapeHtml(p.state) : '';
+    const meta = [party, state].filter(Boolean).join('-');
+    return '<li>' + name + (meta ? ' <span class="person-meta">(' + meta + ')</span>' : '') + '</li>';
+}
+
+// ---------------------------------------------------------------------------
 // Page bootstrap
 // ---------------------------------------------------------------------------
 
@@ -303,5 +430,18 @@ document.addEventListener('DOMContentLoaded', function () {
         const params = new URLSearchParams(window.location.search);
         const billId = params.get('bill_id') || '';
         initChat(billId);
+    }
+
+    // ---- Bill detail page ----
+    if (document.getElementById('bill-detail')) {
+        const params = new URLSearchParams(window.location.search);
+        const billId = params.get('bill_id') || '';
+        // Wire up back-to-chat link
+        const backLink = document.getElementById('back-to-chat');
+        if (backLink && billId) {
+            backLink.href = '/chat.html?bill_id=' + encodeURIComponent(billId);
+            backLink.textContent = '← Back to chat';
+        }
+        initBillDetails(billId);
     }
 });

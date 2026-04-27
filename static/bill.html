@@ -1,0 +1,62 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Bill Details</title>
+    <link rel="icon" href="/favicon.svg" type="image/svg+xml">
+    <link rel="stylesheet" href="/styles.css">
+</head>
+<body>
+    <header class="page-header">
+        <div class="container">
+            <h1>Bill Details</h1>
+            <a id="back-to-chat" href="/" class="home-link">&#8592; Back to chat</a>
+        </div>
+    </header>
+
+    <main class="container">
+        <div id="error" class="error" hidden role="alert"></div>
+        <div id="loading" class="loading" aria-live="polite">Loading bill...</div>
+
+        <article id="bill-detail" hidden>
+            <div class="bill-detail-header">
+                <h2 id="detail-title"></h2>
+                <div class="bill-detail-meta">
+                    <span id="detail-chamber" class="badge"></span>
+                    <span id="detail-congress" class="badge badge-secondary"></span>
+                    <span id="detail-date" class="badge badge-secondary"></span>
+                </div>
+                <a id="detail-congress-link" href="#" target="_blank" rel="noopener noreferrer" class="external-link">View on Congress.gov &#8599;</a>
+            </div>
+
+            <section id="summary-section" class="bill-section" hidden>
+                <h3>Summary</h3>
+                <p id="detail-summary"></p>
+            </section>
+
+            <section id="action-section" class="bill-section" hidden>
+                <h3>Latest Action</h3>
+                <p id="detail-action"></p>
+            </section>
+
+            <section id="sponsors-section" class="bill-section" hidden>
+                <h3>Sponsors</h3>
+                <ul id="detail-sponsors" class="people-list"></ul>
+            </section>
+
+            <section id="cosponsors-section" class="bill-section" hidden>
+                <h3>Cosponsors <span id="cosponsor-count" class="count-badge"></span></h3>
+                <ul id="detail-cosponsors" class="people-list"></ul>
+            </section>
+
+            <section id="subjects-section" class="bill-section" hidden>
+                <h3>Legislative Subjects</h3>
+                <ul id="detail-subjects" class="subject-tags"></ul>
+            </section>
+        </article>
+    </main>
+
+    <script src="/app.js"></script>
+</body>
+</html>
