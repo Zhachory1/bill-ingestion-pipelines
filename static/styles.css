@@ -313,7 +313,17 @@ button:disabled {
 }
 .bill-context-text {
     white-space: pre-wrap;
-    font-size: 0.92rem;
+    font-family: 'Georgia', 'Times New Roman', serif;
+    font-size: 0.88rem;
+    line-height: 1.6;
+    max-height: 500px;
+    overflow-y: auto;
+    background: #f9fafb;
+    border: 1px solid #e5e7eb;
+    border-radius: 6px;
+    padding: 1rem 1.25rem;
+    color: #374151;
+    margin: 0;
 }
 .no-context {
     color: #9ca3af;

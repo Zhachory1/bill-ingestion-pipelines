@@ -49,7 +49,10 @@ def fetch_bill_text(xml_url: str) -> str:
             except etree.XMLSyntaxError:
                 text = resp.text
 
-        return re.sub(r'\s+', ' ', text).strip()
+        # Collapse horizontal whitespace runs but preserve newlines
+        text = re.sub(r'[ \t]+', ' ', text)
+        text = re.sub(r'\n{3,}', '\n\n', text)
+        return text.strip()
 
     raise httpx.HTTPError(f"Both HTML and XML fetch failed for {xml_url}")
 
