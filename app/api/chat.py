@@ -9,6 +9,7 @@ from app.api.schemas import ChatRequest, ChatResponse
 from app.api.bills import fetch_bill_text
 from app.chat.llm import get_llm_client
 from app.chat.service import ChatService
+from app.config import settings
 from app.db import models
 
 router = APIRouter()
@@ -43,6 +44,9 @@ def chat(
     if not bill_text:
         parts = [bill.title or "", bill.summary or ""]
         bill_text = "\n\n".join(p for p in parts if p).strip() or bill_id
+
+    if not x_llm_api_key and settings.ENVIRONMENT != "development":
+        raise HTTPException(status_code=401, detail="An API key is required. Add yours via the 'Set API key' button.")
 
     logger.debug(f"chat bill_id={bill_id!r} turns={len(request.messages)} user_key={'yes' if x_llm_api_key else 'no'}")
     llm = get_llm_client(api_key=x_llm_api_key)
