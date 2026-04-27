@@ -19,7 +19,7 @@ dependencies = [
 ]
 
 [project.optional-dependencies]
-dev = ["pytest", "pytest-cov", "httpx", "lxml-stubs"]
+dev = ["pytest", "pytest-cov", "httpx", "lxml-stubs", "pytest-playwright"]
 
 [tool.pytest.ini_options]
 testpaths = ["tests"]
