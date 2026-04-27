@@ -147,6 +147,83 @@ function renderResults(results, container) {
 }
 
 // ---------------------------------------------------------------------------
+// API key management (persisted to localStorage)
+// ---------------------------------------------------------------------------
+
+const _API_KEY_STORAGE = 'llm_api_key';
+
+function getApiKey() {
+    return localStorage.getItem(_API_KEY_STORAGE) || '';
+}
+
+function setApiKey(key) {
+    if (key) {
+        localStorage.setItem(_API_KEY_STORAGE, key);
+    } else {
+        localStorage.removeItem(_API_KEY_STORAGE);
+    }
+    _updateApiKeyUI();
+}
+
+function _updateApiKeyUI() {
+    const statusEl = document.getElementById('api-key-status');
+    const toggleBtn = document.getElementById('api-key-toggle');
+    if (!statusEl || !toggleBtn) return;
+    const key = getApiKey();
+    if (key) {
+        statusEl.textContent = 'API key set (' + key.slice(0, 8) + '...)';
+        statusEl.className = 'api-key-status api-key-set';
+        toggleBtn.textContent = 'Change';
+    } else {
+        statusEl.textContent = 'No API key — using server key';
+        statusEl.className = 'api-key-status api-key-missing';
+        toggleBtn.textContent = 'Set API key';
+    }
+}
+
+function initApiKeyBar() {
+    const toggleBtn = document.getElementById('api-key-toggle');
+    const form = document.getElementById('api-key-form');
+    const input = document.getElementById('api-key-input');
+    const saveBtn = document.getElementById('api-key-save');
+    const clearBtn = document.getElementById('api-key-clear');
+
+    if (!toggleBtn) return;
+
+    _updateApiKeyUI();
+
+    toggleBtn.addEventListener('click', function () {
+        if (form) form.hidden = !form.hidden;
+        if (!form.hidden && input) {
+            input.value = getApiKey();
+            input.focus();
+        }
+    });
+
+    if (saveBtn) {
+        saveBtn.addEventListener('click', function () {
+            setApiKey(input ? input.value.trim() : '');
+            if (form) form.hidden = true;
+        });
+    }
+
+    if (clearBtn) {
+        clearBtn.addEventListener('click', function () {
+            setApiKey('');
+            if (input) input.value = '';
+            if (form) form.hidden = true;
+        });
+    }
+
+    if (input) {
+        input.addEventListener('keydown', function (e) {
+            if (e.key === 'Enter') { saveBtn && saveBtn.click(); }
+            if (e.key === 'Escape') { if (form) form.hidden = true; }
+        });
+    }
+}
+
+// ---------------------------------------------------------------------------
 // Chat page (chat.html)
 // ---------------------------------------------------------------------------
 
@@ -282,9 +359,13 @@ function appendMessage(role, content) {
  * @returns {Promise<string>} assistant response text
  */
 async function sendMessage(billId, messages) {
+    const headers = { 'Content-Type': 'application/json' };
+    const apiKey = getApiKey();
+    if (apiKey) headers['X-LLM-Api-Key'] = apiKey;
+
     const resp = await fetch('/api/chat/' + encodeURIComponent(billId), {
         method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
+        headers: headers,
         body: JSON.stringify({ messages: messages }),
     });
 
@@ -438,6 +519,9 @@ document.addEventListener('DOMContentLoaded', function () {
             performSearch(query);
         });
     }
+
+    // ---- API key bar (chat page) ----
+    initApiKeyBar();
 
     // ---- Chat page ----
     const chatSection = document.getElementById('chat-section');

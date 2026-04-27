@@ -18,6 +18,23 @@
     <main class="container">
         <div id="error" class="error" hidden role="alert"></div>
 
+        <div class="api-key-bar">
+            <span id="api-key-status" class="api-key-status"></span>
+            <button id="api-key-toggle" type="button" class="api-key-toggle">Set API key</button>
+            <div id="api-key-form" class="api-key-form" hidden>
+                <input
+                    id="api-key-input"
+                    type="password"
+                    placeholder="sk-... or sk-ant-..."
+                    aria-label="LLM API key"
+                    autocomplete="off"
+                    spellcheck="false"
+                />
+                <button id="api-key-save" type="button">Save</button>
+                <button id="api-key-clear" type="button" class="btn-danger">Clear</button>
+            </div>
+        </div>
+
         <div class="bill-info">
             <h2 id="bill-title">Loading bill...</h2>
             <a id="bill-detail-link" href="#" class="bill-detail-link" hidden>View bill details &#8599;</a>

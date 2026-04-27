@@ -2,7 +2,7 @@
 
 import httpx
 from loguru import logger
-from fastapi import APIRouter, Depends, HTTPException
+from fastapi import APIRouter, Depends, HTTPException, Header
 from sqlalchemy.orm import Session
 from app.api.deps import get_db
 from app.api.schemas import ChatRequest, ChatResponse
@@ -15,7 +15,12 @@ router = APIRouter()
 
 
 @router.post("/chat/{bill_id}", response_model=ChatResponse)
-def chat(bill_id: str, request: ChatRequest, db: Session = Depends(get_db)):
+def chat(
+    bill_id: str,
+    request: ChatRequest,
+    db: Session = Depends(get_db),
+    x_llm_api_key: str | None = Header(default=None),
+):
     """Send a message about a specific bill and receive an LLM response.
 
     Client owns conversation history — include the full messages list on every request.
@@ -39,8 +44,8 @@ def chat(bill_id: str, request: ChatRequest, db: Session = Depends(get_db)):
         parts = [bill.title or "", bill.summary or ""]
         bill_text = "\n\n".join(p for p in parts if p).strip() or bill_id
 
-    logger.debug(f"chat bill_id={bill_id!r} turns={len(request.messages)}")
-    llm = get_llm_client()
+    logger.debug(f"chat bill_id={bill_id!r} turns={len(request.messages)} user_key={'yes' if x_llm_api_key else 'no'}")
+    llm = get_llm_client(api_key=x_llm_api_key)
     service = ChatService(llm=llm)
     reply = service.chat(
         bill_text=bill_text,
