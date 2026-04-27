@@ -402,16 +402,17 @@ async function fetchSimilarBills(billId) {
         if (!bills.length) return;
 
         list.innerHTML = bills.map(function (b) {
-            const id = escapeHtml(b.bill_id);
+            const idEscaped = escapeHtml(b.bill_id);
+            const idEncoded = encodeURIComponent(b.bill_id);
             const title = escapeHtml(b.title || b.bill_id);
             const chamber = b.chamber ? escapeHtml(b.chamber) : '';
             const date = b.introduced_date ? 'Introduced ' + escapeHtml(b.introduced_date) : '';
             const meta = [chamber, date].filter(Boolean).join(' · ');
             return (
-                '<label class="similar-bill-card" data-bill-id="' + id + '">' +
-                    '<input type="checkbox" value="' + id + '" aria-label="Select ' + title + '">' +
+                '<label class="similar-bill-card" data-bill-id="' + idEscaped + '">' +
+                    '<input type="checkbox" value="' + idEscaped + '" aria-label="Select ' + title + '">' +
                     '<span class="similar-bill-title">' +
-                        '<a href="/bill.html?bill_id=' + id + '" onclick="event.stopPropagation()">' +
+                        '<a href="/bill.html?bill_id=' + idEncoded + '" onclick="event.stopPropagation()">' +
                         title + '</a>' +
                     '</span>' +
                     (meta ? '<span class="similar-bill-meta">' + meta + '</span>' : '') +
