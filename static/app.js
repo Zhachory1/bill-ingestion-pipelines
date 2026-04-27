@@ -235,6 +235,9 @@ async function initChat(billId) {
         return;
     }
 
+    const params = new URLSearchParams(window.location.search);
+    const extraBillIds = params.getAll('extra_bill_ids');
+
     _currentBillId = billId;
     _messages = [];
 
@@ -247,6 +250,12 @@ async function initChat(billId) {
         const bill = await resp.json();
         if (titleEl) {
             titleEl.textContent = bill.title || billId;
+        }
+        if (extraBillIds.length > 0) {
+            if (titleEl) {
+                titleEl.textContent += ' + ' + extraBillIds.length + ' related bill' +
+                    (extraBillIds.length > 1 ? 's' : '');
+            }
         }
         const detailLink = document.getElementById('bill-detail-link');
         if (detailLink) {
@@ -268,7 +277,7 @@ async function initChat(billId) {
 
     if (sendBtn) {
         sendBtn.addEventListener('click', function () {
-            _handleSend(billId, inputEl);
+            _handleSend(billId, inputEl, extraBillIds);
         });
     }
 
@@ -276,7 +285,7 @@ async function initChat(billId) {
         inputEl.addEventListener('keydown', function (e) {
             if (e.key === 'Enter' && !e.shiftKey) {
                 e.preventDefault();
-                _handleSend(billId, inputEl);
+                _handleSend(billId, inputEl, extraBillIds);
             }
         });
     }
@@ -286,8 +295,9 @@ async function initChat(billId) {
  * Handle the user clicking Send or pressing Enter.
  * @param {string} billId
  * @param {HTMLElement} inputEl
+ * @param {string[]} [extraBillIds]
  */
-async function _handleSend(billId, inputEl) {
+async function _handleSend(billId, inputEl, extraBillIds) {
     const text = inputEl ? inputEl.value.trim() : '';
     if (!text) return;
 
@@ -307,7 +317,7 @@ async function _handleSend(billId, inputEl) {
     if (errorEl) errorEl.hidden = true;
 
     try {
-        const response = await sendMessage(billId, _messages);
+        const response = await sendMessage(billId, _messages, extraBillIds);
         _messages.push({ role: 'assistant', content: response });
         appendMessage('assistant', response);
     } catch (err) {
@@ -343,9 +353,10 @@ function appendMessage(role, content) {
  * Send a chat message to the API.
  * @param {string} billId
  * @param {Array<{role: string, content: string}>} messages
+ * @param {string[]} [extraBillIds]
  * @returns {Promise<string>} assistant response text
  */
-async function sendMessage(billId, messages) {
+async function sendMessage(billId, messages, extraBillIds) {
     const headers = { 'Content-Type': 'application/json' };
     const apiKey = getApiKey();
     if (apiKey) headers['X-LLM-Api-Key'] = apiKey;
@@ -353,7 +364,10 @@ async function sendMessage(billId, messages) {
     const resp = await fetch('/api/chat/' + encodeURIComponent(billId), {
         method: 'POST',
         headers: headers,
-        body: JSON.stringify({ messages: messages }),
+        body: JSON.stringify({
+            messages: messages,
+            additional_bill_ids: extraBillIds || [],
+        }),
     });
 
     if (!resp.ok) {
@@ -368,6 +382,68 @@ async function sendMessage(billId, messages) {
 // ---------------------------------------------------------------------------
 // Bill detail page (bill.html)
 // ---------------------------------------------------------------------------
+
+/**
+ * Fetch and render up to 10 similar bills into #similar-section.
+ * Cards are <label> elements with checkboxes so users can select bills
+ * for multi-bill chat context. Silently no-ops on 404 or network error.
+ * @param {string} billId
+ */
+async function fetchSimilarBills(billId) {
+    const section = document.getElementById('similar-section');
+    const list = document.getElementById('similar-bills');
+    const chatBtn = document.getElementById('chat-with-similar');
+    if (!section || !list) return;
+
+    try {
+        const resp = await fetch('/api/bills/' + encodeURIComponent(billId) + '/similar?limit=10');
+        if (!resp.ok) return; // 404 = no embedding; silently skip
+        const bills = await resp.json();
+        if (!bills.length) return;
+
+        list.innerHTML = bills.map(function (b) {
+            const id = escapeHtml(b.bill_id);
+            const title = escapeHtml(b.title || b.bill_id);
+            const chamber = b.chamber ? escapeHtml(b.chamber) : '';
+            const date = b.introduced_date ? 'Introduced ' + escapeHtml(b.introduced_date) : '';
+            const meta = [chamber, date].filter(Boolean).join(' · ');
+            return (
+                '<label class="similar-bill-card" data-bill-id="' + id + '">' +
+                    '<input type="checkbox" value="' + id + '" aria-label="Select ' + title + '">' +
+                    '<span class="similar-bill-title">' +
+                        '<a href="/bill.html?bill_id=' + id + '" onclick="event.stopPropagation()">' +
+                        title + '</a>' +
+                    '</span>' +
+                    (meta ? '<span class="similar-bill-meta">' + meta + '</span>' : '') +
+                '</label>'
+            );
+        }).join('');
+
+        // Toggle card highlight and show/hide chat button when checkboxes change
+        list.querySelectorAll('input[type="checkbox"]').forEach(function (cb) {
+            cb.addEventListener('change', function () {
+                cb.closest('.similar-bill-card').classList.toggle('selected', cb.checked);
+                const anyChecked = list.querySelectorAll('input:checked').length > 0;
+                if (chatBtn) chatBtn.hidden = !anyChecked;
+            });
+        });
+
+        // Chat button: open chat page with primary bill + selected additional IDs
+        if (chatBtn) {
+            chatBtn.addEventListener('click', function () {
+                const selected = Array.from(list.querySelectorAll('input:checked'))
+                    .map(function (cb) { return cb.value; });
+                const params = new URLSearchParams({ bill_id: billId });
+                selected.forEach(function (id) { params.append('extra_bill_ids', id); });
+                window.location.href = '/chat.html?' + params.toString();
+            });
+        }
+
+        section.hidden = false;
+    } catch (_) {
+        // Network error — silently skip similar bills
+    }
+}
 
 /**
  * Initialise the bill detail page: fetch full bill data and render all sections.
@@ -474,6 +550,9 @@ async function initBillDetails(billId) {
             const section = document.getElementById('subjects-section');
             if (section) section.hidden = false;
         }
+
+        // Fetch similar bills asynchronously (silently skips if no embedding)
+        fetchSimilarBills(billId);
 
         if (detailEl) detailEl.hidden = false;
     } catch (err) {
