@@ -21,6 +21,7 @@ class EmbeddingPipeline:
 
     def _load_model(self) -> SentenceTransformer:
         if self._model is None:
+            logger.info(f"Loading SentenceTransformer model: {self.model_name!r}")
             self._model = SentenceTransformer(self.model_name)
         return self._model
 
@@ -41,6 +42,8 @@ class EmbeddingPipeline:
                 .all()
             )
             if not bills:
+                if stats["embedded"] == 0:
+                    logger.info("No bills require embedding — all up to date")
                 break
             texts = [self._get_text(b) for b in bills]
             embeddings = model.encode(texts, show_progress_bar=False)

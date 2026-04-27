@@ -1,5 +1,6 @@
 """Bill detail endpoints: metadata, sponsors/subjects, and text payload for LLM context."""
 
+from loguru import logger
 from fastapi import APIRouter, Depends, HTTPException
 from sqlalchemy.orm import Session, joinedload
 from app.api.deps import get_db
@@ -22,6 +23,7 @@ def _get_bill_or_404(db: Session, bill_id: str) -> models.Bill:
         .first()
     )
     if bill is None:
+        logger.warning(f"Bill not found: {bill_id!r}")
         raise HTTPException(status_code=404, detail=f"Bill {bill_id!r} not found")
     return bill
 
