@@ -130,3 +130,27 @@ def test_chat_falls_back_to_summary_when_govinfo_fails(client, db):
     assert resp.status_code == 200
     assert "Climate Bill" in captured.get("system", "")
     assert "Short summary." in captured.get("system", "")
+
+
+def test_chat_with_additional_bill_ids(client, db):
+    """additional_bill_ids bills are fetched and passed to the service."""
+    from unittest.mock import patch
+    from app.db.models import Bill
+
+    primary = Bill(bill_id="multi-primary", congress=118, bill_type="hr",
+                   bill_number=8001, title="Primary Bill", summary="Primary summary")
+    extra = Bill(bill_id="multi-extra", congress=118, bill_type="s",
+                 bill_number=8002, title="Extra Bill", summary="Extra summary")
+    db.add_all([primary, extra])
+    db.commit()
+
+    with patch("app.api.chat.ChatService.chat", return_value="ok") as mock_chat:
+        resp = client.post("/api/chat/multi-primary", json={
+            "messages": [{"role": "user", "content": "Compare these bills"}],
+            "additional_bill_ids": ["multi-extra"],
+        })
+    assert resp.status_code == 200
+    call_bills = mock_chat.call_args[1]["bills"]
+    bill_titles = [t for t, _ in call_bills]
+    assert "Primary Bill" in bill_titles
+    assert "Extra Bill" in bill_titles

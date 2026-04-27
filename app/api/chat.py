@@ -32,27 +32,41 @@ def chat(
         logger.warning(f"Chat: bill not found: {bill_id!r}")
         raise HTTPException(status_code=404, detail=f"Bill {bill_id!r} not found")
 
-    # Try to get full legislative text (HTML for structured headers); fall back to title+summary
-    bill_text = None
-    if bill.text_url:
-        try:
-            bill_text = fetch_bill_text(bill.text_url)
-            logger.info(f"Using full govinfo text for {bill_id!r} ({len(bill_text)} chars)")
-        except Exception as e:
-            logger.warning(f"Full text fetch failed for {bill_id!r}, falling back: {e}")
+    def _get_bill_text(b, bid: str) -> str:
+        text = None
+        if b.text_url:
+            try:
+                text = fetch_bill_text(b.text_url)
+                logger.info(f"Using full govinfo text for {bid!r} ({len(text)} chars)")
+            except Exception as e:
+                logger.warning(f"Full text fetch failed for {bid!r}, falling back: {e}")
+        if not text:
+            parts = [b.title or "", b.summary or ""]
+            text = "\n\n".join(p for p in parts if p).strip() or bid
+        return text
 
-    if not bill_text:
-        parts = [bill.title or "", bill.summary or ""]
-        bill_text = "\n\n".join(p for p in parts if p).strip() or bill_id
+    # Primary bill
+    bill_text = _get_bill_text(bill, bill_id)
+    bills = [(bill.title or bill_id, bill_text)]
+
+    # Additional bills from client request
+    for extra_id in request.additional_bill_ids:
+        extra = db.query(models.Bill).filter(models.Bill.bill_id == extra_id).first()
+        if extra is None:
+            logger.warning(f"Chat: additional bill not found: {extra_id!r}, skipping")
+            continue
+        extra_text = _get_bill_text(extra, extra_id)
+        bills.append((extra.title or extra_id, extra_text))
+        logger.debug(f"Added additional bill {extra_id!r} to chat context")
 
     if not x_llm_api_key and settings.ENVIRONMENT != "development":
         raise HTTPException(status_code=401, detail="An API key is required. Add yours via the 'Set API key' button.")
 
-    logger.debug(f"chat bill_id={bill_id!r} turns={len(request.messages)} user_key={'yes' if x_llm_api_key else 'no'}")
+    logger.debug(f"chat bill_id={bill_id!r} turns={len(request.messages)} bills={len(bills)} user_key={'yes' if x_llm_api_key else 'no'}")
     llm = get_llm_client(api_key=x_llm_api_key)
     service = ChatService(llm=llm)
     reply = service.chat(
-        bill_text=bill_text,
+        bills=bills,
         messages=[m.model_dump() for m in request.messages],
     )
     logger.debug(f"chat bill_id={bill_id!r} reply_chars={len(reply)}")

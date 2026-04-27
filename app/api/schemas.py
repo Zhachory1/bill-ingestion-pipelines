@@ -88,6 +88,7 @@ class ChatMessage(BaseModel):
 
 class ChatRequest(BaseModel):
     messages: list[ChatMessage]
+    additional_bill_ids: list[str] = []
 
     @model_validator(mode="after")
     def messages_not_empty(self) -> "ChatRequest":
