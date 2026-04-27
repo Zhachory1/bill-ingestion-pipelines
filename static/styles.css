@@ -42,7 +42,7 @@ a:hover {
     background: #1a1a2e;
     color: #fff;
     padding: 1rem 0;
-    margin-bottom: 2rem;
+    margin-bottom: 0;
 }
 
 .page-header .container {
@@ -561,7 +561,7 @@ button:disabled {
 }
 
 /* ----- Main content flex-grow (keeps footer at bottom) ----- */
-main.container { flex: 1; padding-top: 0; padding-bottom: 2rem; }
+main.container { flex: 1; padding-top: 2rem; padding-bottom: 2rem; }
 
 /* ----- Footer ----- */
 .page-footer {
