@@ -1,5 +1,6 @@
 """Persist parsed bill data to the database via upsert logic."""
 
+from loguru import logger
 from sqlalchemy.exc import IntegrityError
 from sqlalchemy.orm import Session
 from app.db import models
@@ -7,19 +8,31 @@ from app.ingestion.xml_parser import ParsedBill, ParsedSponsor
 
 
 def _upsert_sponsor(db: Session, s: ParsedSponsor) -> None:
-    """Insert sponsor if not exists; update fields if they changed."""
+    """Insert sponsor if not exists; update fields if they changed.
+
+    Uses a SAVEPOINT so that a concurrent-insert IntegrityError only rolls back
+    the nested transaction, keeping the parent session intact.
+    """
     existing = db.get(models.Sponsor, s.bioguide_id)
-    if existing is None:
-        db.add(models.Sponsor(
-            bioguide_id=s.bioguide_id,
-            full_name=s.full_name,
-            party=s.party,
-            state=s.state,
-        ))
-    else:
+    if existing is not None:
         existing.full_name = s.full_name
         existing.party = s.party
         existing.state = s.state
+        return
+    try:
+        with db.begin_nested():
+            db.add(models.Sponsor(
+                bioguide_id=s.bioguide_id,
+                full_name=s.full_name,
+                party=s.party,
+                state=s.state,
+            ))
+    except IntegrityError:
+        existing = db.get(models.Sponsor, s.bioguide_id)
+        if existing is not None:
+            existing.full_name = s.full_name
+            existing.party = s.party
+            existing.state = s.state
 
 
 def _upsert_subject(db: Session, name: str) -> models.LegislativeSubject:
@@ -48,6 +61,7 @@ def upsert_bill(db: Session, parsed: ParsedBill) -> None:
     existing = db.get(models.Bill, parsed.bill_id)
 
     if existing is None:
+        logger.debug(f"Inserting new bill {parsed.bill_id!r}")
         bill = models.Bill(
             bill_id=parsed.bill_id,
             congress=parsed.congress,
@@ -65,6 +79,7 @@ def upsert_bill(db: Session, parsed: ParsedBill) -> None:
         db.add(bill)
         db.flush()
     else:
+        logger.debug(f"Updating bill {parsed.bill_id!r}")
         bill = existing
         bill.title = parsed.title
         bill.summary = parsed.summary
