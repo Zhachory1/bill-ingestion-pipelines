@@ -32,6 +32,9 @@ def chat(
         logger.warning(f"Chat: bill not found: {bill_id!r}")
         raise HTTPException(status_code=404, detail=f"Bill {bill_id!r} not found")
 
+    if not x_llm_api_key and settings.ENVIRONMENT != "development":
+        raise HTTPException(status_code=401, detail="An API key is required. Add yours via the 'Set API key' button.")
+
     def _get_bill_text(b, bid: str) -> str:
         text = None
         if b.text_url:
@@ -58,9 +61,6 @@ def chat(
         extra_text = _get_bill_text(extra, extra_id)
         bills.append((extra.title or extra_id, extra_text))
         logger.debug(f"Added additional bill {extra_id!r} to chat context")
-
-    if not x_llm_api_key and settings.ENVIRONMENT != "development":
-        raise HTTPException(status_code=401, detail="An API key is required. Add yours via the 'Set API key' button.")
 
     logger.debug(f"chat bill_id={bill_id!r} turns={len(request.messages)} bills={len(bills)} user_key={'yes' if x_llm_api_key else 'no'}")
     llm = get_llm_client(api_key=x_llm_api_key)

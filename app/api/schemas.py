@@ -1,7 +1,7 @@
 """Pydantic response models for the bill retrieval API."""
 
 from typing import Literal
-from pydantic import BaseModel, model_validator
+from pydantic import BaseModel, Field, model_validator
 
 
 class SponsorOut(BaseModel):
@@ -88,7 +88,7 @@ class ChatMessage(BaseModel):
 
 class ChatRequest(BaseModel):
     messages: list[ChatMessage]
-    additional_bill_ids: list[str] = []
+    additional_bill_ids: list[str] = Field(default=[], max_length=10)
 
     @model_validator(mode="after")
     def messages_not_empty(self) -> "ChatRequest":

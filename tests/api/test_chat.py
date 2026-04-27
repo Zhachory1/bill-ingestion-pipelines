@@ -88,7 +88,7 @@ def test_chat_uses_full_govinfo_text_when_available(client, db):
     mock_http_resp.raise_for_status = MagicMock()
 
     captured = {}
-    with patch("app.api.chat.httpx.get", return_value=mock_http_resp), \
+    with patch("app.api.bills.httpx.get", return_value=mock_http_resp), \
          patch("app.api.chat.get_llm_client") as mock_factory:
         llm = MagicMock()
         llm.complete.side_effect = lambda system, messages: (
@@ -115,7 +115,7 @@ def test_chat_falls_back_to_summary_when_govinfo_fails(client, db):
     )
 
     captured = {}
-    with patch("app.api.chat.httpx.get", side_effect=_httpx.HTTPError("timeout")), \
+    with patch("app.api.bills.httpx.get", side_effect=_httpx.HTTPError("timeout")), \
          patch("app.api.chat.get_llm_client") as mock_factory:
         llm = MagicMock()
         llm.complete.side_effect = lambda system, messages: (
@@ -134,7 +134,7 @@ def test_chat_falls_back_to_summary_when_govinfo_fails(client, db):
 
 def test_chat_with_additional_bill_ids(client, db):
     """additional_bill_ids bills are fetched and passed to the service."""
-    from unittest.mock import patch
+    from unittest.mock import patch, MagicMock
     from app.db.models import Bill
 
     primary = Bill(bill_id="multi-primary", congress=118, bill_type="hr",
@@ -144,7 +144,10 @@ def test_chat_with_additional_bill_ids(client, db):
     db.add_all([primary, extra])
     db.commit()
 
-    with patch("app.api.chat.ChatService.chat", return_value="ok") as mock_chat:
+    mock_llm = MagicMock()
+    mock_llm.complete.return_value = "ok"
+    with patch("app.api.chat.ChatService.chat", return_value="ok") as mock_chat, \
+         patch("app.api.chat.get_llm_client", return_value=mock_llm):
         resp = client.post("/api/chat/multi-primary", json={
             "messages": [{"role": "user", "content": "Compare these bills"}],
             "additional_bill_ids": ["multi-extra"],
