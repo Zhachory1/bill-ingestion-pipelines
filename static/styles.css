@@ -461,6 +461,58 @@ button:disabled {
     font-size: 0.82rem;
 }
 
+/* ----- Similar bills list (bill detail page) ----- */
+.similar-bills-list {
+    display: flex;
+    flex-direction: column;
+    gap: 0.6rem;
+}
+
+.similar-bill-card {
+    display: flex;
+    justify-content: space-between;
+    align-items: flex-start;
+    gap: 0.75rem;
+    padding: 0.75rem 1rem;
+    background: #fff;
+    border: 1px solid #e5e7eb;
+    border-radius: 8px;
+    cursor: pointer;
+    transition: border-color 0.15s, box-shadow 0.15s;
+}
+
+.similar-bill-card:hover {
+    border-color: #93c5fd;
+    box-shadow: 0 2px 8px rgba(37, 99, 235, 0.1);
+}
+
+.similar-bill-title {
+    font-size: 0.95rem;
+    font-weight: 600;
+    color: #1e40af;
+    flex: 1;
+}
+
+.similar-bill-meta {
+    font-size: 0.82rem;
+    color: #6b7280;
+    white-space: nowrap;
+    flex-shrink: 0;
+}
+
+.similar-bill-card input[type="checkbox"] {
+    flex-shrink: 0;
+    width: 16px;
+    height: 16px;
+    accent-color: #2563eb;
+    cursor: pointer;
+}
+
+.similar-bill-card.selected {
+    border-color: #3b82f6;
+    background: #eff6ff;
+}
+
 /* ----- Chat section ----- */
 #chat-section {
     display: flex;
