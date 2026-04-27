@@ -2,6 +2,7 @@
 
 from dataclasses import dataclass, field
 from pathlib import Path
+from loguru import logger
 from lxml import etree  # type: ignore
 
 
@@ -51,6 +52,7 @@ class BillStatusParser:
 
         Raises ValueError if required fields (billType, billNumber, congress) are missing.
         """
+        logger.debug(f"Parsing {xml_path}")
         tree = etree.parse(str(xml_path))
         bill = tree.find(".//bill")
         if bill is None:

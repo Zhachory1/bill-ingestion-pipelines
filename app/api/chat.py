@@ -20,6 +20,7 @@ def chat(bill_id: str, request: ChatRequest, db: Session = Depends(get_db)):
     """
     bill = db.query(models.Bill).filter(models.Bill.bill_id == bill_id).first()
     if bill is None:
+        logger.warning(f"Chat: bill not found: {bill_id!r}")
         raise HTTPException(status_code=404, detail=f"Bill {bill_id!r} not found")
 
     parts = [bill.title or "", bill.summary or ""]

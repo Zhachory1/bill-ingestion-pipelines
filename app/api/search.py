@@ -1,6 +1,7 @@
 """Semantic bill search endpoint using pgvector cosine similarity."""
 
 from functools import lru_cache
+from loguru import logger
 from fastapi import APIRouter, Depends, Query
 from sqlalchemy.orm import Session
 from sqlalchemy import text
@@ -68,8 +69,10 @@ def search_bills(
     limit: int = Query(10, ge=1, le=100),
     db: Session = Depends(get_db),
 ):
+    logger.debug(f"Search query={q!r} limit={limit}")
     model = _get_model()
     query_vec = model.encode(q).tolist()
     raw = _vector_search(db, query_vec, limit=limit)
     results = _hydrate_results(db, raw)
+    logger.debug(f"Search query={q!r} returned {len(results)} results")
     return SearchResponse(query=q, results=results)
