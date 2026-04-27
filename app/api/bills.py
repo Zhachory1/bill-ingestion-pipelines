@@ -1,5 +1,6 @@
 """Bill detail endpoints: metadata, sponsors/subjects, and text payload for LLM context."""
 
+import math
 import re
 
 import httpx
@@ -10,6 +11,7 @@ from sqlalchemy import text
 from sqlalchemy.orm import Session, joinedload
 from app.api.deps import get_db
 from app.api.schemas import BillOut, BillTextOut, BillFullTextOut, BillSummaryOut
+from app.api.search import _hydrate_results
 from app.db import models
 
 
@@ -122,7 +124,6 @@ def get_bill_fulltext(bill_id: str, db: Session = Depends(get_db)):
 
 def _cosine_similarity(a: list[float], b: list[float]) -> float:
     """Pure-Python cosine similarity for SQLite fallback."""
-    import math
     dot = sum(x * y for x, y in zip(a, b))
     norm_a = math.sqrt(sum(x * x for x in a))
     norm_b = math.sqrt(sum(x * x for x in b))
@@ -134,6 +135,7 @@ def _cosine_similarity(a: list[float], b: list[float]) -> float:
 @router.get("/bills/{bill_id}/similar", response_model=list[BillSummaryOut])
 def get_similar_bills(
     bill_id: str,
+    # Cap at 10 (intentionally lower than search's 100) — this is a UI widget, not a bulk API
     limit: int = Query(10, ge=1, le=10),
     db: Session = Depends(get_db),
 ):
@@ -147,7 +149,8 @@ def get_similar_bills(
     if bill.embedding is None:
         raise HTTPException(status_code=404, detail="No embedding available for this bill")
 
-    dialect = db.bind.dialect.name if db.bind else "unknown"
+    bind = db.get_bind()
+    dialect = bind.dialect.name if bind is not None else "unknown"
 
     if dialect == "postgresql":
         rows = db.execute(
@@ -174,21 +177,4 @@ def get_similar_bills(
         scored.sort(key=lambda r: r["score"], reverse=True)
         search_rows = scored[:limit]
 
-    bill_ids = [r["bill_id"] for r in search_rows]
-    scores = {r["bill_id"]: r["score"] for r in search_rows}
-    bills = db.query(models.Bill).filter(models.Bill.bill_id.in_(bill_ids)).all()
-    bill_map = {b.bill_id: b for b in bills}
-
-    return [
-        BillSummaryOut(
-            bill_id=bid,
-            title=bill_map[bid].title,
-            summary=bill_map[bid].summary,
-            chamber=bill_map[bid].chamber,
-            introduced_date=bill_map[bid].introduced_date,
-            bill_url=bill_map[bid].bill_url,
-            score=scores[bid],
-        )
-        for bid in bill_ids
-        if bid in bill_map
-    ]
+    return _hydrate_results(db, search_rows)
