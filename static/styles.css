@@ -65,19 +65,35 @@ a:hover {
     font-size: 0.9rem;
 }
 
-/* ----- Search form ----- */
+/* ----- Search hero ----- */
+.search-hero {
+    background: #1a1a2e;
+    padding: 2.5rem 1.5rem 3rem;
+    text-align: center;
+    margin-bottom: 2rem;
+}
+
+.search-tagline {
+    color: #93c5fd;
+    font-size: 0.95rem;
+    margin-bottom: 1.25rem;
+    letter-spacing: 0.01em;
+}
+
 .search-form {
     display: flex;
     gap: 0.6rem;
-    margin-bottom: 1.5rem;
+    max-width: 700px;
+    margin: 0 auto;
 }
 
 .search-form input[type="text"] {
     flex: 1;
-    padding: 0.85rem 1.1rem;
-    font-size: 1.05rem;
-    border: 1.5px solid #d1d5db;
-    border-radius: 8px;
+    padding: 1rem 1.25rem;
+    font-size: 1.1rem;
+    font-family: inherit;
+    border: 2px solid #334155;
+    border-radius: 10px;
     outline: none;
     background: #fff;
     transition: border-color 0.15s, box-shadow 0.15s;
@@ -85,14 +101,15 @@ a:hover {
 }
 
 .search-form input[type="text"]:focus {
-    border-color: #2563eb;
-    box-shadow: 0 0 0 3px rgba(37, 99, 235, 0.15);
+    border-color: #3b82f6;
+    box-shadow: 0 0 0 3px rgba(59, 130, 246, 0.25);
 }
 
 .search-form button {
-    padding: 0.85rem 1.6rem;
+    padding: 1rem 1.75rem;
     font-size: 1.05rem;
     white-space: nowrap;
+    border-radius: 10px;
 }
 
 /* ----- Buttons ----- */

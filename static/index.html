@@ -20,20 +20,23 @@
         </div>
     </header>
 
-    <main class="container">
+    <div class="search-hero">
+        <p class="search-tagline">Search 167,000+ US legislative bills by topic, keyword, or sponsor</p>
         <form id="search-form" class="search-form" role="search" aria-label="Search bills">
             <label for="search-input" class="visually-hidden">Search query</label>
             <input
                 type="text"
                 id="search-input"
                 name="q"
-                placeholder="Search for bills, e.g. climate, healthcare..."
+                placeholder="e.g. climate change, healthcare, defense spending..."
                 autocomplete="off"
                 aria-label="Search bills"
             >
             <button type="submit">Search</button>
         </form>
+    </div>
 
+    <main class="container">
         <div id="loading" class="loading" hidden aria-live="polite">Searching...</div>
         <div id="error" class="error" hidden role="alert"></div>
         <div id="results" aria-live="polite" aria-label="Search results"></div>
