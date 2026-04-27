@@ -1,5 +1,37 @@
 <!DOCTYPE html>
 <html lang="en">
-<head><meta charset="UTF-8"><title>Bill Search</title></head>
-<body><h1>Bill Search</h1><p>Search for legislative bills.</p></body>
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Bill Search</title>
+    <link rel="stylesheet" href="/styles.css">
+</head>
+<body>
+    <header class="page-header">
+        <div class="container">
+            <h1>US Legislative Bill Search</h1>
+        </div>
+    </header>
+
+    <main class="container">
+        <form id="search-form" class="search-form" role="search" aria-label="Search bills">
+            <label for="search-input" class="visually-hidden">Search query</label>
+            <input
+                type="text"
+                id="search-input"
+                name="q"
+                placeholder="Search for bills, e.g. climate, healthcare..."
+                autocomplete="off"
+                aria-label="Search bills"
+            >
+            <button type="submit">Search</button>
+        </form>
+
+        <div id="loading" class="loading" hidden aria-live="polite">Searching...</div>
+        <div id="error" class="error" hidden role="alert"></div>
+        <div id="results" aria-live="polite" aria-label="Search results"></div>
+    </main>
+
+    <script src="/app.js"></script>
+</body>
 </html>

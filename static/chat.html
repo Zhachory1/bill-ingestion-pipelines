@@ -1,5 +1,49 @@
 <!DOCTYPE html>
 <html lang="en">
-<head><meta charset="UTF-8"><title>Bill Chat</title></head>
-<body><h1>Bill Chat</h1><p>Chat about a legislative bill.</p></body>
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Bill Chat</title>
+    <link rel="stylesheet" href="/styles.css">
+</head>
+<body>
+    <header class="page-header">
+        <div class="container">
+            <h1>Bill Chat</h1>
+            <a href="/" class="home-link">&#8592; Back to search</a>
+        </div>
+    </header>
+
+    <main class="container">
+        <div id="error" class="error" hidden role="alert"></div>
+
+        <div class="bill-info">
+            <h2 id="bill-title">Loading bill...</h2>
+        </div>
+
+        <section id="chat-section" hidden aria-label="Chat interface">
+            <div
+                id="chat-history"
+                role="log"
+                aria-label="Conversation history"
+                aria-live="polite"
+            ></div>
+
+            <div id="loading" class="loading" hidden aria-live="polite">Waiting for response...</div>
+            <div id="chat-error" class="error" hidden role="alert"></div>
+
+            <div class="chat-input-row">
+                <textarea
+                    id="chat-input"
+                    rows="1"
+                    placeholder="Ask a question about this bill..."
+                    aria-label="Your message"
+                ></textarea>
+                <button id="send-btn" type="button">Send</button>
+            </div>
+        </section>
+    </main>
+
+    <script src="/app.js"></script>
+</body>
 </html>
