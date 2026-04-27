@@ -167,60 +167,47 @@ function setApiKey(key) {
 
 function _updateApiKeyUI() {
     const statusEl = document.getElementById('api-key-status');
-    const toggleBtn = document.getElementById('api-key-toggle');
-    if (!statusEl || !toggleBtn) return;
+    const clearBtn = document.getElementById('api-key-clear');
+    const input = document.getElementById('api-key-input');
+    if (!statusEl) return;
     const key = getApiKey();
     if (key) {
-        statusEl.textContent = 'API key set (' + key.slice(0, 8) + '...)';
+        statusEl.textContent = '✓ Key saved';
         statusEl.className = 'api-key-status api-key-set';
-        toggleBtn.textContent = 'Change';
+        if (clearBtn) clearBtn.hidden = false;
+        if (input) input.value = '';
     } else {
-        statusEl.textContent = 'No API key — using server key';
-        statusEl.className = 'api-key-status api-key-missing';
-        toggleBtn.textContent = 'Set API key';
+        statusEl.textContent = '';
+        statusEl.className = 'api-key-status';
+        if (clearBtn) clearBtn.hidden = true;
     }
 }
 
 function initApiKeyBar() {
-    const toggleBtn = document.getElementById('api-key-toggle');
-    const form = document.getElementById('api-key-form');
     const input = document.getElementById('api-key-input');
     const saveBtn = document.getElementById('api-key-save');
     const clearBtn = document.getElementById('api-key-clear');
 
-    if (!toggleBtn) return;
+    if (!input) return;
 
     _updateApiKeyUI();
 
-    toggleBtn.addEventListener('click', function () {
-        if (form) form.hidden = !form.hidden;
-        if (!form.hidden && input) {
-            input.value = getApiKey();
-            input.focus();
-        }
-    });
-
     if (saveBtn) {
         saveBtn.addEventListener('click', function () {
-            setApiKey(input ? input.value.trim() : '');
-            if (form) form.hidden = true;
+            const val = input.value.trim();
+            if (val) setApiKey(val);
         });
     }
 
     if (clearBtn) {
         clearBtn.addEventListener('click', function () {
             setApiKey('');
-            if (input) input.value = '';
-            if (form) form.hidden = true;
         });
     }
 
-    if (input) {
-        input.addEventListener('keydown', function (e) {
-            if (e.key === 'Enter') { saveBtn && saveBtn.click(); }
-            if (e.key === 'Escape') { if (form) form.hidden = true; }
-        });
-    }
+    input.addEventListener('keydown', function (e) {
+        if (e.key === 'Enter') { saveBtn && saveBtn.click(); }
+    });
 }
 
 // ---------------------------------------------------------------------------

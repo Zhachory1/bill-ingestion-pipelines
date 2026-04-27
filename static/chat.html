@@ -25,20 +25,19 @@
         <div id="error" class="error" hidden role="alert"></div>
 
         <div class="api-key-bar">
+            <label for="api-key-input" class="api-key-label">API Key</label>
+            <input
+                id="api-key-input"
+                type="password"
+                class="api-key-input"
+                placeholder="Paste your OpenAI or Anthropic key..."
+                aria-label="LLM API key"
+                autocomplete="off"
+                spellcheck="false"
+            />
+            <button id="api-key-save" type="button" class="api-key-save">Save</button>
+            <button id="api-key-clear" type="button" class="api-key-clear btn-danger" hidden>Clear</button>
             <span id="api-key-status" class="api-key-status"></span>
-            <button id="api-key-toggle" type="button" class="api-key-toggle">Set API key</button>
-            <div id="api-key-form" class="api-key-form" hidden>
-                <input
-                    id="api-key-input"
-                    type="password"
-                    placeholder="sk-... or sk-ant-..."
-                    aria-label="LLM API key"
-                    autocomplete="off"
-                    spellcheck="false"
-                />
-                <button id="api-key-save" type="button">Save</button>
-                <button id="api-key-clear" type="button" class="btn-danger">Clear</button>
-            </div>
         </div>
 
         <div class="bill-info">
