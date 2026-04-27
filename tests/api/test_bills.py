@@ -103,7 +103,9 @@ def test_get_bill_text_url_returned_when_set(client, db):
 # /api/bills/{id}/fulltext
 # ---------------------------------------------------------------------------
 
-_SAMPLE_XML = b"""<?xml version="1.0"?><bill><text>Hello World</text></bill>"""
+_XML_URL = "https://govinfo.gov/content/pkg/BILLS-118hr1ih/xml/BILLS-118hr1ih.xml"
+_HTML_URL = "https://govinfo.gov/content/pkg/BILLS-118hr1ih/html/BILLS-118hr1ih.htm"
+_SAMPLE_HTML = b"<html><body><pre>SECTION 1. Hello World</pre></body></html>"
 
 
 def test_fulltext_returns_404_when_no_text_url(client, db):
@@ -118,24 +120,25 @@ def test_fulltext_returns_404_for_unknown_bill(client, db):
 
 
 def test_fulltext_returns_plain_text_from_govinfo(client, db):
-    make_bill(db, text_url="https://govinfo.gov/content/pkg/BILLS-118hr1ih/xml/BILLS-118hr1ih.xml")
+    """text_url in response is the HTML URL; text is extracted from <pre>."""
+    make_bill(db, text_url=_XML_URL)
 
     mock_resp = MagicMock()
-    mock_resp.content = _SAMPLE_XML
+    mock_resp.content = _SAMPLE_HTML
     mock_resp.raise_for_status = MagicMock()
 
     with patch("app.api.bills.httpx.get", return_value=mock_resp):
         data = client.get("/api/bills/118-hr-1/fulltext").json()
 
     assert data["bill_id"] == "118-hr-1"
-    assert data["text_url"] == "https://govinfo.gov/content/pkg/BILLS-118hr1ih/xml/BILLS-118hr1ih.xml"
+    assert data["text_url"] == _HTML_URL
     assert "Hello World" in data["text"]
 
 
 def test_fulltext_returns_502_when_govinfo_fails(client, db):
     import httpx as _httpx
 
-    make_bill(db, text_url="https://govinfo.gov/content/pkg/BILLS-118hr1ih/xml/BILLS-118hr1ih.xml")
+    make_bill(db, text_url=_XML_URL)
 
     with patch("app.api.bills.httpx.get", side_effect=_httpx.HTTPError("timeout")):
         resp = client.get("/api/bills/118-hr-1/fulltext")
@@ -144,17 +147,16 @@ def test_fulltext_returns_502_when_govinfo_fails(client, db):
 
 
 def test_fulltext_collapses_whitespace(client, db):
-    make_bill(db, text_url="https://govinfo.gov/content/pkg/BILLS-118hr1ih/xml/BILLS-118hr1ih.xml")
+    make_bill(db, text_url=_XML_URL)
 
-    spaced_xml = b"<bill><a>   Hello  </a><b>  World   </b></bill>"
+    spaced_html = b"<html><body><pre>   Hello     World   </pre></body></html>"
     mock_resp = MagicMock()
-    mock_resp.content = spaced_xml
+    mock_resp.content = spaced_html
     mock_resp.raise_for_status = MagicMock()
 
     with patch("app.api.bills.httpx.get", return_value=mock_resp):
         data = client.get("/api/bills/118-hr-1/fulltext").json()
 
-    # Multiple whitespace should be collapsed to single spaces
     assert "  " not in data["text"]
     assert "Hello" in data["text"]
     assert "World" in data["text"]

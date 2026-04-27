@@ -1,14 +1,12 @@
 """Chat endpoint: POST /api/chat/{bill_id} — stateless LLM conversation about a bill."""
 
-import re
-
 import httpx
 from loguru import logger
-from lxml import etree  # type: ignore
 from fastapi import APIRouter, Depends, HTTPException
 from sqlalchemy.orm import Session
 from app.api.deps import get_db
 from app.api.schemas import ChatRequest, ChatResponse
+from app.api.bills import fetch_bill_text
 from app.chat.llm import get_llm_client
 from app.chat.service import ChatService
 from app.db import models
@@ -28,15 +26,11 @@ def chat(bill_id: str, request: ChatRequest, db: Session = Depends(get_db)):
         logger.warning(f"Chat: bill not found: {bill_id!r}")
         raise HTTPException(status_code=404, detail=f"Bill {bill_id!r} not found")
 
-    # Try to get full legislative text; fall back to title+summary
+    # Try to get full legislative text (HTML for structured headers); fall back to title+summary
     bill_text = None
     if bill.text_url:
         try:
-            resp = httpx.get(bill.text_url, timeout=15, follow_redirects=True)
-            resp.raise_for_status()
-            root = etree.fromstring(resp.content)
-            raw = " ".join(root.itertext())
-            bill_text = re.sub(r'\s+', ' ', raw).strip()
+            bill_text = fetch_bill_text(bill.text_url)
             logger.info(f"Using full govinfo text for {bill_id!r} ({len(bill_text)} chars)")
         except Exception as e:
             logger.warning(f"Full text fetch failed for {bill_id!r}, falling back: {e}")
