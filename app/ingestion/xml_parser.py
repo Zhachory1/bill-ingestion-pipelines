@@ -68,8 +68,8 @@ class BillStatusParser:
             el = bill.find(tag)
             return el.text.strip() if el is not None and el.text else None
 
-        bill_type = req("billType").lower()
-        bill_number = int(req("billNumber"))
+        bill_type = req("type").lower()
+        bill_number = int(req("number"))
         congress = int(req("congress"))
         bill_id = f"{congress}-{bill_type}-{bill_number}"
 

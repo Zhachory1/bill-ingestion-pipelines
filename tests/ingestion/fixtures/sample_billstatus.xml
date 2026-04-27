@@ -1,8 +1,8 @@
 <?xml version="1.0" encoding="UTF-8"?>
 <billStatus>
   <bill>
-    <billType>HR</billType>
-    <billNumber>1234</billNumber>
+    <type>HR</type>
+    <number>1234</number>
     <congress>118</congress>
     <title>A Bill To Test Parsing</title>
     <updateDate>2023-01-15T10:00:00Z</updateDate>

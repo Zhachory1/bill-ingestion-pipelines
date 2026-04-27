@@ -16,8 +16,8 @@ def _make_xml(congress: int, bill_type: str, number: int) -> str:
     return f"""<?xml version="1.0" encoding="UTF-8"?>
 <billStatus>
   <bill>
-    <billType>{bill_type.upper()}</billType>
-    <billNumber>{number}</billNumber>
+    <type>{bill_type.upper()}</type>
+    <number>{number}</number>
     <congress>{congress}</congress>
     <title>A Bill {congress}-{bill_type}-{number}</title>
     <updateDate>2023-01-15T10:00:00Z</updateDate>
