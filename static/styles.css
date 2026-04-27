@@ -32,9 +32,9 @@ a:hover {
 
 /* ----- Layout container ----- */
 .container {
-    max-width: 800px;
+    max-width: 900px;
     margin: 0 auto;
-    padding: 0 1rem;
+    padding: 0 1.5rem;
 }
 
 /* ----- Page header ----- */
@@ -68,24 +68,31 @@ a:hover {
 /* ----- Search form ----- */
 .search-form {
     display: flex;
-    gap: 0.5rem;
+    gap: 0.6rem;
     margin-bottom: 1.5rem;
 }
 
 .search-form input[type="text"] {
     flex: 1;
-    padding: 0.6rem 0.9rem;
-    font-size: 1rem;
-    border: 1px solid #d1d5db;
-    border-radius: 6px;
+    padding: 0.85rem 1.1rem;
+    font-size: 1.05rem;
+    border: 1.5px solid #d1d5db;
+    border-radius: 8px;
     outline: none;
     background: #fff;
-    transition: border-color 0.15s;
+    transition: border-color 0.15s, box-shadow 0.15s;
+    min-width: 0;
 }
 
 .search-form input[type="text"]:focus {
     border-color: #2563eb;
     box-shadow: 0 0 0 3px rgba(37, 99, 235, 0.15);
+}
+
+.search-form button {
+    padding: 0.85rem 1.6rem;
+    font-size: 1.05rem;
+    white-space: nowrap;
 }
 
 /* ----- Buttons ----- */
