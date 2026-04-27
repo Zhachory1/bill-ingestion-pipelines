@@ -16,10 +16,11 @@ dependencies = [
     "openai",
     "anthropic",
     "pgvector>=0.4.2",
+    "httpx",
 ]
 
 [project.optional-dependencies]
-dev = ["pytest", "pytest-cov", "httpx", "lxml-stubs", "pytest-playwright"]
+dev = ["pytest", "pytest-cov", "lxml-stubs", "pytest-playwright"]
 
 [tool.pytest.ini_options]
 testpaths = ["tests"]

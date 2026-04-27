@@ -25,6 +25,7 @@ class BillOut(BaseModel):
     introduced_date: str | None
     chamber: str | None
     bill_url: str | None
+    text_url: str | None
     subjects: list[str]
     sponsors: list[SponsorOut]
     cosponsors: list[SponsorOut]
@@ -46,6 +47,7 @@ class BillOut(BaseModel):
             introduced_date=bill.introduced_date,
             chamber=bill.chamber,
             bill_url=bill.bill_url,
+            text_url=bill.text_url,
             subjects=[s.name for s in bill.subjects],
             sponsors=bill.sponsors,
             cosponsors=bill.cosponsors,
@@ -55,6 +57,12 @@ class BillOut(BaseModel):
 class BillTextOut(BaseModel):
     bill_id: str
     title: str | None
+    text: str
+
+
+class BillFullTextOut(BaseModel):
+    bill_id: str
+    text_url: str
     text: str
 
 

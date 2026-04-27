@@ -1,9 +1,20 @@
 """Parse BILLSTATUS XML files from the congress/unitedstates corpus into dataclasses."""
 
+import re
 from dataclasses import dataclass, field
 from pathlib import Path
 from loguru import logger
 from lxml import etree  # type: ignore
+
+_HTML_TAG_RE = re.compile(r'<[^>]+>')
+
+
+def _strip_html(text: str | None) -> str | None:
+    """Remove HTML tags from Congress.gov summary text."""
+    if not text:
+        return None
+    cleaned = ' '.join(_HTML_TAG_RE.sub(' ', text).split())
+    return cleaned or None
 
 
 @dataclass
@@ -28,9 +39,40 @@ class ParsedBill:
     introduced_date: str | None = None
     chamber: str | None = None
     bill_url: str | None = None
+    text_url: str | None = None
     subjects: list[str] = field(default_factory=list)
     sponsors: list[ParsedSponsor] = field(default_factory=list)
     cosponsors: list[ParsedSponsor] = field(default_factory=list)
+
+
+_VERSION_PRIORITY = [
+    "Enrolled Bill",
+    "Engrossed in Senate", "Engrossed in House",
+    "Reported to Senate", "Reported in Senate",
+    "Reported to House", "Reported in House",
+    "Introduced in Senate", "Introduced in House",
+]
+
+
+def _best_text_url(bill_el) -> str | None:
+    """Return the best govinfo XML URL from <textVersions>, ordered by _VERSION_PRIORITY.
+
+    Falls back to the first available URL when none of the preferred versions are present.
+    Returns None when <textVersions> is absent or no XML URL can be found.
+    """
+    tv = bill_el.find("textVersions")
+    if tv is None:
+        return None
+    items = {
+        item.findtext("type", ""): item.findtext("formats/item/url")
+        for item in tv.findall("item")
+        if item.findtext("formats/item/url")
+    }
+    for version in _VERSION_PRIORITY:
+        if version in items:
+            return items[version]
+    # fallback: any URL found
+    return next(iter(items.values()), None)
 
 
 _BILL_TYPE_URL_MAP = {
@@ -111,13 +153,14 @@ class BillStatusParser:
             bill_type=bill_type,
             bill_number=bill_number,
             title=opt("title"),
-            summary=bill.findtext(".//summaries/summary/text"),
+            summary=_strip_html(bill.findtext(".//summaries/summary/text")),
             latest_action=latest_action or None,
             latest_action_date=latest_action_date or None,
             last_updated=opt("updateDate"),
             introduced_date=introduced_date,
             chamber=chamber,
             bill_url=bill_url,
+            text_url=_best_text_url(bill),
             subjects=subjects,
             sponsors=parse_sponsors("sponsors"),
             cosponsors=parse_sponsors("cosponsors"),

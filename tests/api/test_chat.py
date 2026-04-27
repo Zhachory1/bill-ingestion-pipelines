@@ -68,3 +68,65 @@ def test_chat_empty_messages_returns_422(client, db):
     make_bill(db)
     resp = client.post("/api/chat/118-hr-1", json={"messages": []})
     assert resp.status_code == 422
+
+
+def test_chat_uses_full_govinfo_text_when_available(client, db):
+    """When text_url is set and govinfo responds, the full text should reach the LLM."""
+    import httpx as _httpx
+    from unittest.mock import MagicMock
+
+    make_bill(
+        db,
+        title="Climate Bill",
+        summary="Short summary.",
+        text_url="https://govinfo.gov/content/pkg/BILLS-118hr1ih/xml/BILLS-118hr1ih.xml",
+    )
+
+    gov_xml = b"<bill><text>FULL LEGISLATIVE TEXT CONTENT HERE</text></bill>"
+    mock_http_resp = MagicMock()
+    mock_http_resp.content = gov_xml
+    mock_http_resp.raise_for_status = MagicMock()
+
+    captured = {}
+    with patch("app.api.chat.httpx.get", return_value=mock_http_resp), \
+         patch("app.api.chat.get_llm_client") as mock_factory:
+        llm = MagicMock()
+        llm.complete.side_effect = lambda system, messages: (
+            captured.update({"system": system}) or "ok"
+        )
+        mock_factory.return_value = llm
+        client.post(
+            "/api/chat/118-hr-1",
+            json={"messages": [{"role": "user", "content": "q"}]},
+        )
+
+    assert "FULL LEGISLATIVE TEXT CONTENT HERE" in captured.get("system", "")
+
+
+def test_chat_falls_back_to_summary_when_govinfo_fails(client, db):
+    """If govinfo fetch fails, chat should fall back to title+summary."""
+    import httpx as _httpx
+
+    make_bill(
+        db,
+        title="Climate Bill",
+        summary="Short summary.",
+        text_url="https://govinfo.gov/content/pkg/BILLS-118hr1ih/xml/BILLS-118hr1ih.xml",
+    )
+
+    captured = {}
+    with patch("app.api.chat.httpx.get", side_effect=_httpx.HTTPError("timeout")), \
+         patch("app.api.chat.get_llm_client") as mock_factory:
+        llm = MagicMock()
+        llm.complete.side_effect = lambda system, messages: (
+            captured.update({"system": system}) or "ok"
+        )
+        mock_factory.return_value = llm
+        resp = client.post(
+            "/api/chat/118-hr-1",
+            json={"messages": [{"role": "user", "content": "q"}]},
+        )
+
+    assert resp.status_code == 200
+    assert "Climate Bill" in captured.get("system", "")
+    assert "Short summary." in captured.get("system", "")

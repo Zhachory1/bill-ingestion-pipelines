@@ -68,6 +68,7 @@ class Bill(Base):
     introduced_date: Mapped[str | None] = mapped_column(String(20), nullable=True)
     chamber: Mapped[str | None] = mapped_column(String(10), nullable=True)
     bill_url: Mapped[str | None] = mapped_column(Text, nullable=True)
+    text_url: Mapped[str | None] = mapped_column(String, nullable=True)
 
     embedding: Mapped[list[float] | None] = mapped_column(
         Vector(settings.EMBEDDING_DIM).with_variant(JsonVector(), "sqlite"),

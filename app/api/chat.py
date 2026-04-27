@@ -1,6 +1,10 @@
 """Chat endpoint: POST /api/chat/{bill_id} — stateless LLM conversation about a bill."""
 
+import re
+
+import httpx
 from loguru import logger
+from lxml import etree  # type: ignore
 from fastapi import APIRouter, Depends, HTTPException
 from sqlalchemy.orm import Session
 from app.api.deps import get_db
@@ -17,14 +21,29 @@ def chat(bill_id: str, request: ChatRequest, db: Session = Depends(get_db)):
     """Send a message about a specific bill and receive an LLM response.
 
     Client owns conversation history — include the full messages list on every request.
+    Uses full govinfo legislative text when available; falls back to title+summary.
     """
     bill = db.query(models.Bill).filter(models.Bill.bill_id == bill_id).first()
     if bill is None:
         logger.warning(f"Chat: bill not found: {bill_id!r}")
         raise HTTPException(status_code=404, detail=f"Bill {bill_id!r} not found")
 
-    parts = [bill.title or "", bill.summary or ""]
-    bill_text = "\n\n".join(p for p in parts if p).strip() or bill_id
+    # Try to get full legislative text; fall back to title+summary
+    bill_text = None
+    if bill.text_url:
+        try:
+            resp = httpx.get(bill.text_url, timeout=15, follow_redirects=True)
+            resp.raise_for_status()
+            root = etree.fromstring(resp.content)
+            raw = " ".join(root.itertext())
+            bill_text = re.sub(r'\s+', ' ', raw).strip()
+            logger.info(f"Using full govinfo text for {bill_id!r} ({len(bill_text)} chars)")
+        except Exception as e:
+            logger.warning(f"Full text fetch failed for {bill_id!r}, falling back: {e}")
+
+    if not bill_text:
+        parts = [bill.title or "", bill.summary or ""]
+        bill_text = "\n\n".join(p for p in parts if p).strip() or bill_id
 
     logger.debug(f"chat bill_id={bill_id!r} turns={len(request.messages)}")
     llm = get_llm_client()

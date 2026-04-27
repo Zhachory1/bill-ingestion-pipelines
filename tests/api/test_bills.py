@@ -1,3 +1,7 @@
+from unittest.mock import patch, MagicMock
+
+import pytest
+
 from tests.api.conftest import make_bill
 from app.db import models
 
@@ -71,3 +75,86 @@ def test_get_bill_text_fallback_when_no_content(client, db):
 def test_get_bill_text_not_found(client, db):
     resp = client.get("/api/bills/999-hr-9999/text")
     assert resp.status_code == 404
+
+
+# ---------------------------------------------------------------------------
+# BillOut now includes text_url
+# ---------------------------------------------------------------------------
+
+def test_get_bill_includes_text_url_field(client, db):
+    make_bill(db)
+    data = client.get("/api/bills/118-hr-1").json()
+    assert "text_url" in data
+
+
+def test_get_bill_text_url_is_none_by_default(client, db):
+    make_bill(db)
+    data = client.get("/api/bills/118-hr-1").json()
+    assert data["text_url"] is None
+
+
+def test_get_bill_text_url_returned_when_set(client, db):
+    make_bill(db, text_url="https://govinfo.gov/content/pkg/BILLS-118hr1ih/xml/BILLS-118hr1ih.xml")
+    data = client.get("/api/bills/118-hr-1").json()
+    assert data["text_url"] == "https://govinfo.gov/content/pkg/BILLS-118hr1ih/xml/BILLS-118hr1ih.xml"
+
+
+# ---------------------------------------------------------------------------
+# /api/bills/{id}/fulltext
+# ---------------------------------------------------------------------------
+
+_SAMPLE_XML = b"""<?xml version="1.0"?><bill><text>Hello World</text></bill>"""
+
+
+def test_fulltext_returns_404_when_no_text_url(client, db):
+    make_bill(db)  # text_url=None by default
+    resp = client.get("/api/bills/118-hr-1/fulltext")
+    assert resp.status_code == 404
+
+
+def test_fulltext_returns_404_for_unknown_bill(client, db):
+    resp = client.get("/api/bills/999-hr-9999/fulltext")
+    assert resp.status_code == 404
+
+
+def test_fulltext_returns_plain_text_from_govinfo(client, db):
+    make_bill(db, text_url="https://govinfo.gov/content/pkg/BILLS-118hr1ih/xml/BILLS-118hr1ih.xml")
+
+    mock_resp = MagicMock()
+    mock_resp.content = _SAMPLE_XML
+    mock_resp.raise_for_status = MagicMock()
+
+    with patch("app.api.bills.httpx.get", return_value=mock_resp):
+        data = client.get("/api/bills/118-hr-1/fulltext").json()
+
+    assert data["bill_id"] == "118-hr-1"
+    assert data["text_url"] == "https://govinfo.gov/content/pkg/BILLS-118hr1ih/xml/BILLS-118hr1ih.xml"
+    assert "Hello World" in data["text"]
+
+
+def test_fulltext_returns_502_when_govinfo_fails(client, db):
+    import httpx as _httpx
+
+    make_bill(db, text_url="https://govinfo.gov/content/pkg/BILLS-118hr1ih/xml/BILLS-118hr1ih.xml")
+
+    with patch("app.api.bills.httpx.get", side_effect=_httpx.HTTPError("timeout")):
+        resp = client.get("/api/bills/118-hr-1/fulltext")
+
+    assert resp.status_code == 502
+
+
+def test_fulltext_collapses_whitespace(client, db):
+    make_bill(db, text_url="https://govinfo.gov/content/pkg/BILLS-118hr1ih/xml/BILLS-118hr1ih.xml")
+
+    spaced_xml = b"<bill><a>   Hello  </a><b>  World   </b></bill>"
+    mock_resp = MagicMock()
+    mock_resp.content = spaced_xml
+    mock_resp.raise_for_status = MagicMock()
+
+    with patch("app.api.bills.httpx.get", return_value=mock_resp):
+        data = client.get("/api/bills/118-hr-1/fulltext").json()
+
+    # Multiple whitespace should be collapsed to single spaces
+    assert "  " not in data["text"]
+    assert "Hello" in data["text"]
+    assert "World" in data["text"]
