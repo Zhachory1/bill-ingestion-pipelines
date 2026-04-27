@@ -96,6 +96,18 @@ def upsert_bill(db: Session, parsed: ParsedBill) -> None:
         _upsert_sponsor(db, s)
     db.flush()
 
-    bill.sponsors = [sp for s in parsed.sponsors if (sp := db.get(models.Sponsor, s.bioguide_id)) is not None]
-    bill.cosponsors = [sp for s in parsed.cosponsors if (sp := db.get(models.Sponsor, s.bioguide_id)) is not None]
+    # Deduplicate by bioguide_id: some XMLs list the same person twice,
+    # which would cause a unique violation on the association table PK.
+    seen: set[str] = set()
+    bill.sponsors = []
+    for s in parsed.sponsors:
+        if s.bioguide_id not in seen and (sp := db.get(models.Sponsor, s.bioguide_id)):
+            bill.sponsors.append(sp)
+            seen.add(s.bioguide_id)
+    seen.clear()
+    bill.cosponsors = []
+    for s in parsed.cosponsors:
+        if s.bioguide_id not in seen and (sp := db.get(models.Sponsor, s.bioguide_id)):
+            bill.cosponsors.append(sp)
+            seen.add(s.bioguide_id)
     bill.subjects = [_upsert_subject(db, name) for name in parsed.subjects]
