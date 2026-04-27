@@ -49,6 +49,7 @@ def make_bill(db, bill_id="118-hr-1", **kwargs) -> models.Bill:
         introduced_date="2023-01-05",
         chamber="House",
         bill_url="https://www.congress.gov/bill/118th-congress/house-bill/1",
+        text_url=None,
     )
     defaults.update(kwargs)
     bill = models.Bill(bill_id=bill_id, **defaults)

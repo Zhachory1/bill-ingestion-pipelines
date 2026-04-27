@@ -74,6 +74,7 @@ dependencies = [
     { name = "alembic" },
     { name = "anthropic" },
     { name = "fastapi" },
+    { name = "httpx" },
     { name = "loguru" },
     { name = "lxml" },
     { name = "openai" },
@@ -88,7 +89,6 @@ dependencies = [
 
 [package.optional-dependencies]
 dev = [
-    { name = "httpx" },
     { name = "lxml-stubs" },
     { name = "pytest" },
     { name = "pytest-cov" },
@@ -100,7 +100,7 @@ requires-dist = [
     { name = "alembic" },
     { name = "anthropic" },
     { name = "fastapi" },
-    { name = "httpx", marker = "extra == 'dev'" },
+    { name = "httpx" },
     { name = "loguru" },
     { name = "lxml" },
     { name = "lxml-stubs", marker = "extra == 'dev'" },

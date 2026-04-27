@@ -75,6 +75,7 @@ def upsert_bill(db: Session, parsed: ParsedBill) -> None:
             introduced_date=parsed.introduced_date,
             chamber=parsed.chamber,
             bill_url=parsed.bill_url,
+            text_url=parsed.text_url,
         )
         db.add(bill)
         db.flush()
@@ -89,6 +90,7 @@ def upsert_bill(db: Session, parsed: ParsedBill) -> None:
         bill.introduced_date = parsed.introduced_date
         bill.chamber = parsed.chamber
         bill.bill_url = parsed.bill_url
+        bill.text_url = parsed.text_url
 
     for s in parsed.sponsors:
         _upsert_sponsor(db, s)

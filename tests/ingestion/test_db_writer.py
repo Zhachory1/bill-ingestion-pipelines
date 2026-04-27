@@ -115,3 +115,23 @@ def test_upsert_subject_returns_existing(db):
     db.commit()
     assert s1.id == s2.id
     assert db.query(models.LegislativeSubject).count() == 1
+
+
+def test_upsert_stores_text_url(db):
+    """text_url should be persisted on insert."""
+    url = "https://govinfo.gov/content/pkg/BILLS-118hr1ih/xml/BILLS-118hr1ih.xml"
+    upsert_bill(db, make_parsed_bill(text_url=url))
+    db.commit()
+    bill = db.query(models.Bill).one()
+    assert bill.text_url == url
+
+
+def test_upsert_updates_text_url(db):
+    """text_url should be overwritten on subsequent upsert."""
+    upsert_bill(db, make_parsed_bill(text_url=None))
+    db.commit()
+    new_url = "https://govinfo.gov/content/pkg/BILLS-118hr1enr/xml/BILLS-118hr1enr.xml"
+    upsert_bill(db, make_parsed_bill(text_url=new_url))
+    db.commit()
+    bill = db.query(models.Bill).one()
+    assert bill.text_url == new_url

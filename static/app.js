@@ -345,15 +345,18 @@ async function initBillDetails(billId) {
             else { linkEl.hidden = true; }
         }
 
-        // Chatbot context — fetch from /api/bills/{id}/text
+        // Full legislative text — fetch from /api/bills/{id}/fulltext
         const contextEl = document.getElementById('detail-context');
         if (contextEl) {
             try {
-                const textResp = await fetch('/api/bills/' + encodeURIComponent(billId) + '/text');
-                if (textResp.ok) {
+                const textResp = await fetch('/api/bills/' + encodeURIComponent(billId) + '/fulltext');
+                if (textResp.status === 404) {
+                    contextEl.textContent = 'No full text available for this bill.';
+                    contextEl.classList.add('no-context');
+                } else if (textResp.ok) {
                     const textData = await textResp.json();
-                    const contextText = stripHtml(textData.text || '');
-                    contextEl.textContent = contextText || 'No text available for this bill.';
+                    const contextText = textData.text || '';
+                    contextEl.textContent = contextText || 'No full text available for this bill.';
                     if (!contextText) contextEl.classList.add('no-context');
                 } else {
                     contextEl.textContent = 'Could not load bill text.';

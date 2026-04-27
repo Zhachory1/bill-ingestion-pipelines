@@ -1,10 +1,14 @@
 """Bill detail endpoints: metadata, sponsors/subjects, and text payload for LLM context."""
 
+import re
+
+import httpx
 from loguru import logger
+from lxml import etree  # type: ignore
 from fastapi import APIRouter, Depends, HTTPException
 from sqlalchemy.orm import Session, joinedload
 from app.api.deps import get_db
-from app.api.schemas import BillOut, BillTextOut
+from app.api.schemas import BillOut, BillTextOut, BillFullTextOut
 from app.db import models
 
 router = APIRouter()
@@ -46,3 +50,33 @@ def get_bill_text(bill_id: str, db: Session = Depends(get_db)):
     parts = [bill.title or "", bill.summary or ""]
     text = "\n\n".join(p for p in parts if p).strip() or bill_id
     return BillTextOut(bill_id=bill.bill_id, title=bill.title, text=text)
+
+
+@router.get("/bills/{bill_id}/fulltext", response_model=BillFullTextOut)
+def get_bill_fulltext(bill_id: str, db: Session = Depends(get_db)):
+    """Fetch full legislative text from govinfo.gov and return as plain text.
+
+    Fetches XML on demand — text is never stored server-side.
+    Returns 404 if no text URL exists, 502 if govinfo fetch fails.
+    """
+    bill = _get_bill_or_404(db, bill_id)
+    if not bill.text_url:
+        raise HTTPException(status_code=404, detail="No full text available for this bill")
+
+    logger.info(f"Fetching full text for {bill_id!r} from {bill.text_url}")
+    try:
+        resp = httpx.get(bill.text_url, timeout=15, follow_redirects=True)
+        resp.raise_for_status()
+    except httpx.HTTPError as e:
+        logger.warning(f"govinfo fetch failed for {bill_id!r}: {e}")
+        raise HTTPException(status_code=502, detail="Failed to fetch bill text from govinfo.gov")
+
+    # Strip XML tags — itertext() walks all text nodes in document order
+    try:
+        root = etree.fromstring(resp.content)
+        raw = " ".join(root.itertext())
+        text = re.sub(r'\s+', ' ', raw).strip()
+    except etree.XMLSyntaxError:
+        text = resp.text
+
+    return BillFullTextOut(bill_id=bill_id, text_url=bill.text_url, text=text)
