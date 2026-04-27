@@ -14,11 +14,16 @@ class LLMClient(ABC):
 
 
 class AnthropicClient(LLMClient):
-    """Anthropic Claude backend. System prompt passed as top-level param."""
+    """Anthropic Claude backend. System prompt passed as top-level param.
+
+    SDK client created once and reused across calls (maintains HTTP connection pool).
+    """
+
+    def __init__(self) -> None:
+        self._client = Anthropic(api_key=settings.ANTHROPIC_API_KEY)
 
     def complete(self, system: str, messages: list[dict]) -> str:
-        client = Anthropic(api_key=settings.ANTHROPIC_API_KEY)
-        resp = client.messages.create(
+        resp = self._client.messages.create(
             model=settings.LLM_MODEL,
             max_tokens=settings.LLM_MAX_TOKENS,
             system=system,
@@ -28,12 +33,17 @@ class AnthropicClient(LLMClient):
 
 
 class OpenAIClient(LLMClient):
-    """OpenAI ChatGPT backend. System prompt prepended as a system message."""
+    """OpenAI ChatGPT backend. System prompt prepended as a system message.
+
+    SDK client created once and reused across calls (maintains HTTP connection pool).
+    """
+
+    def __init__(self) -> None:
+        self._client = OpenAI(api_key=settings.OPENAI_API_KEY)
 
     def complete(self, system: str, messages: list[dict]) -> str:
-        client = OpenAI(api_key=settings.OPENAI_API_KEY)
         all_messages = [{"role": "system", "content": system}] + messages
-        resp = client.chat.completions.create(
+        resp = self._client.chat.completions.create(
             model=settings.LLM_MODEL,
             max_tokens=settings.LLM_MAX_TOKENS,
             messages=all_messages,

@@ -43,8 +43,14 @@ BILLSTATUS XML corpus
   app/api/
     bills.py           — GET /api/bills/{id}, GET /api/bills/{id}/text
     search.py          — GET /api/search?q= (pgvector cosine similarity)
+    chat.py            — POST /api/chat/{id} (stateless LLM conversation)
     schemas.py         — Pydantic response models
     deps.py            — get_db FastAPI dependency
+        │
+        ▼
+  app/chat/
+    llm.py             — LLMClient ABC, AnthropicClient, OpenAIClient, get_llm_client
+    service.py         — ChatService (legislative analyst system prompt)
 ```
 
 ## CLI Commands
@@ -74,6 +80,20 @@ curl http://localhost:8000/api/bills/118-hr-1234/text
 
 # Semantic search
 curl "http://localhost:8000/api/search?q=climate+change&limit=5"
+
+# Chat about a bill (stateless — client owns conversation history)
+curl -X POST http://localhost:8000/api/chat/118-hr-1234 \
+  -H "Content-Type: application/json" \
+  -d '{"messages": [{"role": "user", "content": "What is this bill about?"}]}'
+
+# Multi-turn conversation (pass full history each request)
+curl -X POST http://localhost:8000/api/chat/118-hr-1234 \
+  -H "Content-Type: application/json" \
+  -d '{"messages": [
+    {"role": "user", "content": "What does section 2 cover?"},
+    {"role": "assistant", "content": "Section 2 covers funding..."},
+    {"role": "user", "content": "How much funding?"}
+  ]}'
 
 # Interactive docs
 open http://localhost:8000/docs

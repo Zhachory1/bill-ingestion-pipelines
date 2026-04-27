@@ -1,5 +1,6 @@
 """Chat endpoint: POST /api/chat/{bill_id} — stateless LLM conversation about a bill."""
 
+from loguru import logger
 from fastapi import APIRouter, Depends, HTTPException
 from sqlalchemy.orm import Session
 from app.api.deps import get_db
@@ -24,10 +25,12 @@ def chat(bill_id: str, request: ChatRequest, db: Session = Depends(get_db)):
     parts = [bill.title or "", bill.summary or ""]
     bill_text = "\n\n".join(p for p in parts if p).strip() or bill_id
 
+    logger.debug(f"chat bill_id={bill_id!r} turns={len(request.messages)}")
     llm = get_llm_client()
     service = ChatService(llm=llm)
     reply = service.chat(
         bill_text=bill_text,
         messages=[m.model_dump() for m in request.messages],
     )
+    logger.debug(f"chat bill_id={bill_id!r} reply_chars={len(reply)}")
     return ChatResponse(bill_id=bill_id, response=reply)
