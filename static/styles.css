@@ -108,6 +108,10 @@ button:disabled {
 
 /* ----- Loading indicator ----- */
 .loading {
+    display: none;
+}
+
+.loading:not([hidden]) {
     display: flex;
     align-items: center;
     gap: 0.6rem;
@@ -236,6 +240,102 @@ button:disabled {
     color: #1e40af;
 }
 
+.bill-detail-link {
+    display: inline-block;
+    margin-top: 0.4rem;
+    font-size: 0.85rem;
+    color: #2563eb;
+    text-decoration: none;
+}
+.bill-detail-link:hover { text-decoration: underline; }
+
+/* ----- Bill detail page ----- */
+.bill-detail-header {
+    margin-bottom: 1.5rem;
+}
+.bill-detail-header h2 {
+    font-size: 1.3rem;
+    font-weight: 700;
+    color: #111827;
+    margin-bottom: 0.6rem;
+}
+.bill-detail-meta {
+    display: flex;
+    flex-wrap: wrap;
+    gap: 0.4rem;
+    margin-bottom: 0.75rem;
+}
+.badge {
+    display: inline-block;
+    padding: 0.2rem 0.6rem;
+    border-radius: 999px;
+    font-size: 0.78rem;
+    font-weight: 600;
+    background: #dbeafe;
+    color: #1e40af;
+}
+.badge-secondary {
+    background: #f3f4f6;
+    color: #374151;
+}
+.external-link {
+    font-size: 0.85rem;
+    color: #2563eb;
+    text-decoration: none;
+}
+.external-link:hover { text-decoration: underline; }
+
+.bill-section {
+    background: #fff;
+    border: 1px solid #e5e7eb;
+    border-radius: 8px;
+    padding: 1rem 1.25rem;
+    margin-bottom: 1rem;
+}
+.bill-section h3 {
+    font-size: 0.85rem;
+    font-weight: 600;
+    text-transform: uppercase;
+    letter-spacing: 0.05em;
+    color: #6b7280;
+    margin-bottom: 0.6rem;
+}
+.bill-section p {
+    color: #374151;
+    line-height: 1.6;
+}
+.people-list {
+    list-style: none;
+    display: flex;
+    flex-direction: column;
+    gap: 0.3rem;
+}
+.people-list li { color: #374151; font-size: 0.95rem; }
+.person-meta { color: #6b7280; font-size: 0.85rem; }
+.count-badge {
+    font-size: 0.75rem;
+    background: #e5e7eb;
+    color: #374151;
+    padding: 0.1rem 0.45rem;
+    border-radius: 999px;
+    font-weight: 500;
+    vertical-align: middle;
+}
+.subject-tags {
+    list-style: none;
+    display: flex;
+    flex-wrap: wrap;
+    gap: 0.4rem;
+}
+.subject-tags li {
+    background: #f0fdf4;
+    color: #166534;
+    border: 1px solid #bbf7d0;
+    border-radius: 999px;
+    padding: 0.2rem 0.7rem;
+    font-size: 0.82rem;
+}
+
 /* ----- Chat section ----- */
 #chat-section {
     display: flex;
@@ -244,6 +344,19 @@ button:disabled {
 }
 
 /* ----- Message history ----- */
+#chat-history-container:has(#chat-history:empty) {
+    display: none;
+}
+
+.chat-history-header {
+    font-size: 0.85rem;
+    font-weight: 600;
+    text-transform: uppercase;
+    letter-spacing: 0.05em;
+    color: #6b7280;
+    margin-bottom: 0.5rem;
+}
+
 #chat-history {
     background: #fff;
     border: 1px solid #e5e7eb;
