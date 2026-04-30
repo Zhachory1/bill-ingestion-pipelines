@@ -128,3 +128,7 @@ pgadmin/
 
 # HubSpot config file
 hubspot.config.yml
+
+# Certbot (Let's Encrypt certs + ACME challenge files — not committed)
+certbot/conf/
+certbot/www/

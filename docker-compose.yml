@@ -8,12 +8,49 @@ services:
     ports:
       - "${POSTGRES_PORT:-5432}:5432"
     volumes:
-      - postgres_data:/var/lib/postgresql/data
+      - ${POSTGRES_DATA_DIR:-postgres_data}:/var/lib/postgresql/data
     healthcheck:
       test: ["CMD-SHELL", "pg_isready -U ${POSTGRES_USER:-billchatbot}"]
       interval: 5s
       timeout: 5s
       retries: 5
+
+  web:
+    build: .
+    command: uv run uvicorn app.main:app --host 0.0.0.0 --port 8000
+    expose:
+      - "8000"
+    environment:
+      DATABASE_URL: postgresql://${POSTGRES_USER:-billchatbot}:${POSTGRES_PASSWORD:-billchatbot_dev_password}@postgres:5432/${POSTGRES_DB:-billchatbot}
+      ENVIRONMENT: ${ENVIRONMENT:-development}
+      RELOAD: "false"
+      LLM_PROVIDER: ${LLM_PROVIDER:-anthropic}
+      EMBEDDING_MODEL: ${EMBEDDING_MODEL:-all-MiniLM-L6-v2}
+      LOG_LEVEL: ${LOG_LEVEL:-INFO}
+    depends_on:
+      postgres:
+        condition: service_healthy
+    restart: unless-stopped
+
+  nginx:
+    image: nginx:alpine
+    ports:
+      - "80:80"
+      - "443:443"
+    volumes:
+      - ./nginx/conf:/etc/nginx/conf.d:ro
+      - ./certbot/www:/var/www/certbot:ro
+      - ./certbot/conf:/etc/letsencrypt:ro
+    depends_on:
+      - web
+    restart: unless-stopped
+
+  certbot:
+    image: certbot/certbot
+    volumes:
+      - ./certbot/www:/var/www/certbot
+      - ./certbot/conf:/etc/letsencrypt
+    profiles: [certbot]
 
   # migrate: run migrations in isolation with: docker compose --profile etl run --rm migrate
   migrate:
