@@ -16,8 +16,6 @@ class Settings(BaseSettings):
     # ETL pipeline
     ETL_BATCH_SIZE: int = 100
     ETL_RATE_LIMIT_DELAY: float = 1.0
-    CONGRESS_GOV_API_KEY: str = ""
-    GOVTRACK_API_KEY: str = ""
 
     # Embeddings
     EMBEDDING_MODEL: str = "all-MiniLM-L6-v2"
