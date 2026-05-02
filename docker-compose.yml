@@ -18,8 +18,8 @@ services:
   web:
     build: .
     command: uv run uvicorn app.main:app --host 0.0.0.0 --port 8000
-    expose:
-      - "8000"
+    ports:
+      - "8000:8000"
     environment:
       DATABASE_URL: postgresql://${POSTGRES_USER:-billchatbot}:${POSTGRES_PASSWORD:-billchatbot_dev_password}@postgres:5432/${POSTGRES_DB:-billchatbot}
       ENVIRONMENT: ${ENVIRONMENT:-development}
@@ -51,6 +51,19 @@ services:
       - ./certbot/www:/var/www/certbot
       - ./certbot/conf:/etc/letsencrypt
     profiles: [certbot]
+
+  embed-bills:
+    build: .
+    command: uv run python -m app.cli embed-bills
+    environment:
+      DATABASE_URL: postgresql://${POSTGRES_USER:-billchatbot}:${POSTGRES_PASSWORD:-billchatbot_dev_password}@postgres:5432/${POSTGRES_DB:-billchatbot}
+      EMBEDDING_MODEL: ${EMBEDDING_MODEL:-all-MiniLM-L6-v2}
+      ETL_BATCH_SIZE: ${ETL_BATCH_SIZE:-100}
+    depends_on:
+      postgres:
+        condition: service_healthy
+    restart: "no"
+    profiles: [embed-bills]
 
   # migrate: run migrations in isolation with: docker compose --profile etl run --rm migrate
   migrate:
