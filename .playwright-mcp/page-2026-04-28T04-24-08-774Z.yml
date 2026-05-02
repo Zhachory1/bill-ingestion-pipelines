@@ -1,0 +1,27 @@
+- generic [active] [ref=e1]:
+  - banner [ref=e2]:
+    - generic [ref=e3]:
+      - link "LegisChat logo" [ref=e4] [cursor=pointer]:
+        - /url: /
+        - img "LegisChat logo" [ref=e5]
+      - heading "US Legislative Bill Search" [level=1] [ref=e6]
+  - generic [ref=e7]:
+    - paragraph [ref=e8]: Search 167,000+ US legislative bills by topic, keyword, or sponsor
+    - search "Search bills" [ref=e9]:
+      - generic [ref=e10]: Search query
+      - textbox "Search bills" [ref=e11]:
+        - /placeholder: e.g. climate change, healthcare, defense spending...
+      - button "Search" [ref=e12] [cursor=pointer]
+  - main [ref=e13]:
+    - generic "Search results"
+  - contentinfo [ref=e14]:
+    - generic [ref=e15]:
+      - generic [ref=e16]:
+        - text: Built by
+        - link "Zhachory1" [ref=e17] [cursor=pointer]:
+          - /url: https://github.com/Zhachory1
+      - generic [ref=e18]: ·
+      - link "GitHub" [ref=e19] [cursor=pointer]:
+        - /url: https://github.com/Zhachory1/bill-ingestion-pipelines
+      - generic [ref=e20]: ·
+      - generic [ref=e21]: MIT License

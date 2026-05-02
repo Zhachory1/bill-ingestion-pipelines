@@ -14,13 +14,10 @@ class LLMClient(ABC):
 
 
 class AnthropicClient(LLMClient):
-    """Anthropic Claude backend. System prompt passed as top-level param.
+    """Anthropic Claude backend. System prompt passed as top-level param."""
 
-    SDK client created once and reused across calls (maintains HTTP connection pool).
-    """
-
-    def __init__(self) -> None:
-        self._client = Anthropic(api_key=settings.ANTHROPIC_API_KEY)
+    def __init__(self, api_key: str | None = None) -> None:
+        self._client = Anthropic(api_key=api_key or settings.ANTHROPIC_API_KEY)
 
     def complete(self, system: str, messages: list[dict]) -> str:
         resp = self._client.messages.create(
@@ -33,13 +30,10 @@ class AnthropicClient(LLMClient):
 
 
 class OpenAIClient(LLMClient):
-    """OpenAI ChatGPT backend. System prompt prepended as a system message.
+    """OpenAI ChatGPT backend. System prompt prepended as a system message."""
 
-    SDK client created once and reused across calls (maintains HTTP connection pool).
-    """
-
-    def __init__(self) -> None:
-        self._client = OpenAI(api_key=settings.OPENAI_API_KEY)
+    def __init__(self, api_key: str | None = None) -> None:
+        self._client = OpenAI(api_key=api_key or settings.OPENAI_API_KEY)
 
     def complete(self, system: str, messages: list[dict]) -> str:
         all_messages = [{"role": "system", "content": system}] + messages
@@ -51,8 +45,8 @@ class OpenAIClient(LLMClient):
         return resp.choices[0].message.content or ""
 
 
-def get_llm_client() -> LLMClient:
-    """Return configured LLM client based on LLM_PROVIDER setting."""
+def get_llm_client(api_key: str | None = None) -> LLMClient:
+    """Return configured LLM client. api_key overrides the server .env key."""
     if settings.LLM_PROVIDER == "anthropic":
-        return AnthropicClient()
-    return OpenAIClient()
+        return AnthropicClient(api_key=api_key)
+    return OpenAIClient(api_key=api_key)

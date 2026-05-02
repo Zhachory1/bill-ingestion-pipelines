@@ -11,6 +11,51 @@ from app.api.deps import get_db
 from app.api.schemas import BillOut, BillTextOut, BillFullTextOut
 from app.db import models
 
+
+def _html_url_from_xml_url(xml_url: str) -> str:
+    """Derive the govinfo HTML URL from the stored XML URL.
+
+    e.g. .../xml/BILLS-118hr1ih.xml  →  .../html/BILLS-118hr1ih.htm
+    """
+    return xml_url.replace("/xml/", "/html/").replace(".xml", ".htm")
+
+
+def fetch_bill_text(xml_url: str) -> str:
+    """Fetch the govinfo HTML version of a bill and return plain text.
+
+    Falls back to the XML URL if the HTML URL returns an error.
+    Raises httpx.HTTPError on both-fail.
+    """
+    html_url = _html_url_from_xml_url(xml_url)
+    for url in (html_url, xml_url):
+        try:
+            resp = httpx.get(url, timeout=15, follow_redirects=True)
+            resp.raise_for_status()
+        except httpx.HTTPError:
+            continue
+
+        if "html" in url:
+            # govinfo HTML is plain text wrapped in <pre> — extract that text node
+            try:
+                root = etree.fromstring(resp.content, etree.HTMLParser())
+                pre = root.find(".//pre")
+                text = "".join(pre.itertext()) if pre is not None else "".join(root.itertext())
+            except Exception:
+                text = re.sub(r'<[^>]+>', ' ', resp.text)
+        else:
+            try:
+                root = etree.fromstring(resp.content)
+                text = " ".join(root.itertext())
+            except etree.XMLSyntaxError:
+                text = resp.text
+
+        # Collapse horizontal whitespace runs but preserve newlines
+        text = re.sub(r'[ \t]+', ' ', text)
+        text = re.sub(r'\n{3,}', '\n\n', text)
+        return text.strip()
+
+    raise httpx.HTTPError(f"Both HTML and XML fetch failed for {xml_url}")
+
 router = APIRouter()
 
 
@@ -63,20 +108,12 @@ def get_bill_fulltext(bill_id: str, db: Session = Depends(get_db)):
     if not bill.text_url:
         raise HTTPException(status_code=404, detail="No full text available for this bill")
 
-    logger.info(f"Fetching full text for {bill_id!r} from {bill.text_url}")
+    html_url = _html_url_from_xml_url(bill.text_url)
+    logger.info(f"Fetching full text for {bill_id!r} from {html_url}")
     try:
-        resp = httpx.get(bill.text_url, timeout=15, follow_redirects=True)
-        resp.raise_for_status()
+        text = fetch_bill_text(bill.text_url)
     except httpx.HTTPError as e:
         logger.warning(f"govinfo fetch failed for {bill_id!r}: {e}")
         raise HTTPException(status_code=502, detail="Failed to fetch bill text from govinfo.gov")
 
-    # Strip XML tags — itertext() walks all text nodes in document order
-    try:
-        root = etree.fromstring(resp.content)
-        raw = " ".join(root.itertext())
-        text = re.sub(r'\s+', ' ', raw).strip()
-    except etree.XMLSyntaxError:
-        text = resp.text
-
-    return BillFullTextOut(bill_id=bill_id, text_url=bill.text_url, text=text)
+    return BillFullTextOut(bill_id=bill_id, text_url=html_url, text=text)

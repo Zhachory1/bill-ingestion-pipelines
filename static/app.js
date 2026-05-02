@@ -147,6 +147,70 @@ function renderResults(results, container) {
 }
 
 // ---------------------------------------------------------------------------
+// API key management (persisted to localStorage)
+// ---------------------------------------------------------------------------
+
+const _API_KEY_STORAGE = 'llm_api_key';
+
+function getApiKey() {
+    return localStorage.getItem(_API_KEY_STORAGE) || '';
+}
+
+function setApiKey(key) {
+    if (key) {
+        localStorage.setItem(_API_KEY_STORAGE, key);
+    } else {
+        localStorage.removeItem(_API_KEY_STORAGE);
+    }
+    _updateApiKeyUI();
+}
+
+function _updateApiKeyUI() {
+    const statusEl = document.getElementById('api-key-status');
+    const clearBtn = document.getElementById('api-key-clear');
+    const input = document.getElementById('api-key-input');
+    if (!statusEl) return;
+    const key = getApiKey();
+    if (key) {
+        statusEl.textContent = '✓ Key saved';
+        statusEl.className = 'api-key-status api-key-set';
+        if (clearBtn) clearBtn.hidden = false;
+        if (input) input.value = '';
+    } else {
+        statusEl.textContent = '';
+        statusEl.className = 'api-key-status';
+        if (clearBtn) clearBtn.hidden = true;
+    }
+}
+
+function initApiKeyBar() {
+    const input = document.getElementById('api-key-input');
+    const saveBtn = document.getElementById('api-key-save');
+    const clearBtn = document.getElementById('api-key-clear');
+
+    if (!input) return;
+
+    _updateApiKeyUI();
+
+    if (saveBtn) {
+        saveBtn.addEventListener('click', function () {
+            const val = input.value.trim();
+            if (val) setApiKey(val);
+        });
+    }
+
+    if (clearBtn) {
+        clearBtn.addEventListener('click', function () {
+            setApiKey('');
+        });
+    }
+
+    input.addEventListener('keydown', function (e) {
+        if (e.key === 'Enter') { saveBtn && saveBtn.click(); }
+    });
+}
+
+// ---------------------------------------------------------------------------
 // Chat page (chat.html)
 // ---------------------------------------------------------------------------
 
@@ -282,9 +346,13 @@ function appendMessage(role, content) {
  * @returns {Promise<string>} assistant response text
  */
 async function sendMessage(billId, messages) {
+    const headers = { 'Content-Type': 'application/json' };
+    const apiKey = getApiKey();
+    if (apiKey) headers['X-LLM-Api-Key'] = apiKey;
+
     const resp = await fetch('/api/chat/' + encodeURIComponent(billId), {
         method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
+        headers: headers,
         body: JSON.stringify({ messages: messages }),
     });
 
@@ -438,6 +506,9 @@ document.addEventListener('DOMContentLoaded', function () {
             performSearch(query);
         });
     }
+
+    // ---- API key bar (chat page) ----
+    initApiKeyBar();
 
     // ---- Chat page ----
     const chatSection = document.getElementById('chat-section');

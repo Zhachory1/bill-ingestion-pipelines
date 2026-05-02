@@ -5,11 +5,17 @@
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
     <title>Bill Chat</title>
     <link rel="icon" href="/favicon.svg" type="image/svg+xml">
+    <link rel="preconnect" href="https://fonts.googleapis.com">
+    <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+    <link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700&display=swap" rel="stylesheet">
     <link rel="stylesheet" href="/styles.css">
 </head>
 <body>
     <header class="page-header">
         <div class="container">
+            <a href="/" class="header-logo-link">
+                <img src="/favicon.svg" alt="LegisChat logo" class="header-logo">
+            </a>
             <h1>Bill Chat</h1>
             <a href="/" class="home-link">&#8592; Back to search</a>
         </div>
@@ -17,6 +23,22 @@
 
     <main class="container">
         <div id="error" class="error" hidden role="alert"></div>
+
+        <div class="api-key-bar">
+            <label for="api-key-input" class="api-key-label">API Key</label>
+            <input
+                id="api-key-input"
+                type="password"
+                class="api-key-input"
+                placeholder="Paste your OpenAI or Anthropic key..."
+                aria-label="LLM API key"
+                autocomplete="off"
+                spellcheck="false"
+            />
+            <button id="api-key-save" type="button" class="api-key-save">Save</button>
+            <button id="api-key-clear" type="button" class="api-key-clear btn-danger" hidden>Clear</button>
+            <span id="api-key-status" class="api-key-status"></span>
+        </div>
 
         <div class="bill-info">
             <h2 id="bill-title">Loading bill...</h2>
@@ -48,6 +70,16 @@
             </div>
         </section>
     </main>
+
+    <footer class="page-footer">
+        <div class="container">
+            <span>Built by <a href="https://github.com/Zhachory1" target="_blank" rel="noopener noreferrer">Zhachory1</a></span>
+            <span class="footer-sep">·</span>
+            <a href="https://github.com/Zhachory1/bill-ingestion-pipelines" target="_blank" rel="noopener noreferrer">GitHub</a>
+            <span class="footer-sep">·</span>
+            <span>MIT License</span>
+        </div>
+    </footer>
 
     <script src="/app.js"></script>
 </body>
