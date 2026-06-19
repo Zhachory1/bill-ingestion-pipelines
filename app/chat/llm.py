@@ -3,7 +3,7 @@
 from abc import ABC, abstractmethod
 from anthropic import Anthropic
 from openai import OpenAI
-from app.config import settings
+from app.config import settings, LLMProvider
 
 
 class LLMClient(ABC):
@@ -47,6 +47,10 @@ class OpenAIClient(LLMClient):
 
 def get_llm_client(api_key: str | None = None) -> LLMClient:
     """Return configured LLM client. api_key overrides the server .env key."""
-    if settings.LLM_PROVIDER == "anthropic":
+    if settings.LLM_PROVIDER == LLMProvider.ANTHROPIC:
         return AnthropicClient(api_key=api_key)
-    return OpenAIClient(api_key=api_key)
+    elif settings.LLM_PROVIDER == LLMProvider.OPENAI:
+        return OpenAIClient(api_key=api_key)
+    else:
+        # This should never happen due to enum validation, but be defensive
+        raise ValueError(f"Unsupported LLM provider: {settings.LLM_PROVIDER}")

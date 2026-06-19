@@ -1,6 +1,8 @@
+import pytest
 from unittest.mock import patch, MagicMock
+from pydantic import ValidationError
 from app.chat.llm import AnthropicClient, OpenAIClient, get_llm_client
-from app.config import settings
+from app.config import settings, Settings, LLMProvider
 
 
 def test_anthropic_client_calls_messages_create():
@@ -47,6 +49,13 @@ def test_openai_client_calls_chat_completions():
     assert result == "OpenAI reply"
 
 
+def test_get_llm_client_raises_on_invalid_enum():
+    """get_llm_client defensive check (should never happen due to validation)."""
+    with patch.object(settings, "LLM_PROVIDER", "invalid"):
+        with pytest.raises(ValueError, match="Unsupported LLM provider"):
+            get_llm_client()
+
+
 def test_openai_client_prepends_system_message():
     mock_choice = MagicMock()
     mock_choice.message.content = "reply"
@@ -63,12 +72,67 @@ def test_openai_client_prepends_system_message():
 
 
 def test_get_llm_client_returns_anthropic_by_default():
-    with patch.object(settings, "LLM_PROVIDER", "anthropic"):
+    with patch.object(settings, "LLM_PROVIDER", LLMProvider.ANTHROPIC):
         client = get_llm_client()
     assert isinstance(client, AnthropicClient)
 
 
 def test_get_llm_client_returns_openai():
-    with patch.object(settings, "LLM_PROVIDER", "openai"):
+    with patch.object(settings, "LLM_PROVIDER", LLMProvider.OPENAI):
         client = get_llm_client()
     assert isinstance(client, OpenAIClient)
+
+
+def test_settings_validates_llm_provider_enum():
+    """Valid provider string is converted to enum."""
+    test_settings = Settings(
+        LLM_PROVIDER="anthropic",
+        ANTHROPIC_API_KEY="test-key"
+    )
+    assert test_settings.LLM_PROVIDER == LLMProvider.ANTHROPIC
+    assert test_settings.LLM_MODEL == "claude-opus-4-5"
+
+
+def test_settings_rejects_invalid_provider():
+    """Invalid provider raises ValidationError at settings load time."""
+    with pytest.raises(ValidationError) as exc_info:
+        Settings(LLM_PROVIDER="invalid-provider")
+    assert "Invalid LLM_PROVIDER" in str(exc_info.value)
+
+
+def test_settings_uses_anthropic_default_model():
+    """Anthropic provider gets claude default when LLM_MODEL not set."""
+    test_settings = Settings(
+        LLM_PROVIDER="anthropic",
+        ANTHROPIC_API_KEY="test-key"
+    )
+    assert test_settings.LLM_MODEL == "claude-opus-4-5"
+
+
+def test_settings_uses_openai_default_model():
+    """OpenAI provider gets gpt default when LLM_MODEL not set."""
+    test_settings = Settings(
+        LLM_PROVIDER="openai",
+        OPENAI_API_KEY="test-key"
+    )
+    assert test_settings.LLM_MODEL == "gpt-4o"
+
+
+def test_settings_respects_explicit_model_override():
+    """Explicit LLM_MODEL overrides provider default."""
+    test_settings = Settings(
+        LLM_PROVIDER="openai",
+        LLM_MODEL="gpt-3.5-turbo",
+        OPENAI_API_KEY="test-key"
+    )
+    assert test_settings.LLM_MODEL == "gpt-3.5-turbo"
+
+
+def test_settings_allows_custom_anthropic_model():
+    """Can use custom Anthropic model."""
+    test_settings = Settings(
+        LLM_PROVIDER="anthropic",
+        LLM_MODEL="claude-sonnet-4-5",
+        ANTHROPIC_API_KEY="test-key"
+    )
+    assert test_settings.LLM_MODEL == "claude-sonnet-4-5"
