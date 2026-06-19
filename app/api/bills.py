@@ -12,6 +12,7 @@ from app.api.schemas import BillOut, BillTextOut, BillFullTextOut
 from app.db import models
 from app.config import settings
 from app.rate_limit import limiter
+from app.text_cache import get_cached_text
 
 
 def _html_url_from_xml_url(xml_url: str) -> str:
@@ -114,7 +115,7 @@ def get_bill_fulltext(request: Request, response: Response, bill_id: str, db: Se
     html_url = _html_url_from_xml_url(bill.text_url)
     logger.info(f"Fetching full text for {bill_id!r} from {html_url}")
     try:
-        text = fetch_bill_text(bill.text_url)
+        text = get_cached_text(bill.text_url, fetch_bill_text)
     except httpx.HTTPError as e:
         logger.warning(f"govinfo fetch failed for {bill_id!r}: {e}")
         raise HTTPException(status_code=502, detail="Failed to fetch bill text from govinfo.gov")

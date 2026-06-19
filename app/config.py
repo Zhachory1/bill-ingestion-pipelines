@@ -63,6 +63,8 @@ class Settings(BaseSettings):
     MAX_QUERY_LENGTH: int = 500          # Max search query length
     MAX_MESSAGE_LENGTH: int = 5000       # Max single message content
     MAX_MESSAGE_COUNT: int = 50          # Max conversation history length
+    MAX_BILL_TEXT_CHARS: int = 20000     # Max bill context sent to the LLM
+    FULLTEXT_CACHE_MAX_ENTRIES: int = 256
 
     @field_validator("RATE_LIMIT_ENABLED", mode="before")
     @classmethod

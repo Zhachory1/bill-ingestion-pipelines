@@ -1,5 +1,6 @@
 import pytest
 from fastapi.testclient import TestClient
+from app.text_cache import clear_text_cache
 from sqlalchemy import create_engine
 from sqlalchemy.orm import sessionmaker
 from sqlalchemy.pool import StaticPool
@@ -7,6 +8,13 @@ from app.db.session import Base
 from app.db import models
 from app.api.deps import get_db
 from app.main import app
+
+
+@pytest.fixture(autouse=True)
+def clear_fulltext_cache():
+    clear_text_cache()
+    yield
+    clear_text_cache()
 
 
 @pytest.fixture
