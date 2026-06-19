@@ -12,6 +12,7 @@ from app.chat.service import ChatService
 from app.config import settings
 from app.db import models
 from app.rate_limit import limiter
+from app.text_cache import get_cached_text, truncate_text
 
 router = APIRouter()
 
@@ -40,7 +41,7 @@ def chat(
     bill_text = None
     if bill.text_url:
         try:
-            bill_text = fetch_bill_text(bill.text_url)
+            bill_text = get_cached_text(bill.text_url, fetch_bill_text)
             logger.info(f"Using full govinfo text for {bill_id!r} ({len(bill_text)} chars)")
         except Exception as e:
             logger.warning(f"Full text fetch failed for {bill_id!r}, falling back: {e}")
@@ -48,6 +49,7 @@ def chat(
     if not bill_text:
         parts = [bill.title or "", bill.summary or ""]
         bill_text = "\n\n".join(p for p in parts if p).strip() or bill_id
+    bill_text = truncate_text(bill_text)
 
     if not x_llm_api_key and settings.ENVIRONMENT != "development":
         raise HTTPException(status_code=401, detail="An API key is required. Add yours via the 'Set API key' button.")
