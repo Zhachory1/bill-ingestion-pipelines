@@ -2,7 +2,7 @@
 
 from functools import lru_cache
 from loguru import logger
-from fastapi import APIRouter, Depends, Query, Request, HTTPException
+from fastapi import APIRouter, Depends, Query, Request, Response, HTTPException
 from sqlalchemy.orm import Session
 from sqlalchemy import text
 from sentence_transformers import SentenceTransformer
@@ -65,9 +65,10 @@ def _hydrate_results(db: Session, search_rows: list[dict]) -> list[BillSummaryOu
 
 
 @router.get("/search", response_model=SearchResponse)
-@limiter.limit(settings.RATE_LIMIT_SEARCH)
+@limiter.limit(lambda: settings.RATE_LIMIT_SEARCH)
 def search_bills(
     request: Request,
+    response: Response,
     q: str = Query(..., min_length=1, description="Natural-language search query"),
     limit: int = Query(10, ge=1, le=100),
     db: Session = Depends(get_db),

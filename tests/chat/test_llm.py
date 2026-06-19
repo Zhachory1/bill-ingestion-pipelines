@@ -86,8 +86,9 @@ def test_get_llm_client_returns_openai():
 def test_settings_validates_llm_provider_enum():
     """Valid provider string is converted to enum."""
     test_settings = Settings(
+        _env_file=None,
         LLM_PROVIDER="anthropic",
-        ANTHROPIC_API_KEY="test-key"
+        ANTHROPIC_API_KEY="test-key",
     )
     assert test_settings.LLM_PROVIDER == LLMProvider.ANTHROPIC
     assert test_settings.LLM_MODEL == "claude-opus-4-5"
@@ -96,15 +97,17 @@ def test_settings_validates_llm_provider_enum():
 def test_settings_rejects_invalid_provider():
     """Invalid provider raises ValidationError at settings load time."""
     with pytest.raises(ValidationError) as exc_info:
-        Settings(LLM_PROVIDER="invalid-provider")
-    assert "Invalid LLM_PROVIDER" in str(exc_info.value)
+        Settings(_env_file=None, LLM_PROVIDER="invalid-provider")
+    assert "anthropic" in str(exc_info.value).lower()
+    assert "openai" in str(exc_info.value).lower()
 
 
 def test_settings_uses_anthropic_default_model():
     """Anthropic provider gets claude default when LLM_MODEL not set."""
     test_settings = Settings(
+        _env_file=None,
         LLM_PROVIDER="anthropic",
-        ANTHROPIC_API_KEY="test-key"
+        ANTHROPIC_API_KEY="test-key",
     )
     assert test_settings.LLM_MODEL == "claude-opus-4-5"
 
@@ -112,8 +115,9 @@ def test_settings_uses_anthropic_default_model():
 def test_settings_uses_openai_default_model():
     """OpenAI provider gets gpt default when LLM_MODEL not set."""
     test_settings = Settings(
+        _env_file=None,
         LLM_PROVIDER="openai",
-        OPENAI_API_KEY="test-key"
+        OPENAI_API_KEY="test-key",
     )
     assert test_settings.LLM_MODEL == "gpt-4o"
 
@@ -121,9 +125,10 @@ def test_settings_uses_openai_default_model():
 def test_settings_respects_explicit_model_override():
     """Explicit LLM_MODEL overrides provider default."""
     test_settings = Settings(
+        _env_file=None,
         LLM_PROVIDER="openai",
         LLM_MODEL="gpt-3.5-turbo",
-        OPENAI_API_KEY="test-key"
+        OPENAI_API_KEY="test-key",
     )
     assert test_settings.LLM_MODEL == "gpt-3.5-turbo"
 
@@ -131,8 +136,9 @@ def test_settings_respects_explicit_model_override():
 def test_settings_allows_custom_anthropic_model():
     """Can use custom Anthropic model."""
     test_settings = Settings(
+        _env_file=None,
         LLM_PROVIDER="anthropic",
         LLM_MODEL="claude-sonnet-4-5",
-        ANTHROPIC_API_KEY="test-key"
+        ANTHROPIC_API_KEY="test-key",
     )
     assert test_settings.LLM_MODEL == "claude-sonnet-4-5"
