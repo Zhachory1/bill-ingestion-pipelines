@@ -53,6 +53,25 @@ class Settings(BaseSettings):
     PORT: int = 8000
     RELOAD: bool = False
 
+    # Rate limiting (requests per minute per IP)
+    RATE_LIMIT_ENABLED: bool = True
+    RATE_LIMIT_SEARCH: str = "20/minute"  # Search is less expensive
+    RATE_LIMIT_CHAT: str = "10/minute"    # Chat calls LLM, more expensive
+    RATE_LIMIT_FULLTEXT: str = "15/minute"  # External HTTP fetch
+
+    # Input validation limits
+    MAX_QUERY_LENGTH: int = 500          # Max search query length
+    MAX_MESSAGE_LENGTH: int = 5000       # Max single message content
+    MAX_MESSAGE_COUNT: int = 50          # Max conversation history length
+
+    @field_validator("RATE_LIMIT_ENABLED", mode="before")
+    @classmethod
+    def parse_rate_limit_enabled(cls, v: bool | str) -> bool:
+        """Allow RATE_LIMIT_ENABLED=false in env vars."""
+        if isinstance(v, str):
+            return v.lower() not in ("false", "0", "no", "off")
+        return bool(v)
+
     @field_validator("LLM_MODEL", mode="before")
     @classmethod
     def set_default_model(cls, v: str | None, info) -> str:

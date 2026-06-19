@@ -99,6 +99,27 @@ curl -X POST http://localhost:8000/api/chat/118-hr-1234 \
 open http://localhost:8000/docs
 ```
 
+### Rate Limiting & Input Validation
+
+Production endpoints are protected with per-IP rate limits:
+
+- **Search**: 20 requests/minute (query encoding + vector search)
+- **Chat**: 10 requests/minute (LLM calls, external text fetch)
+- **Full text**: 15 requests/minute (govinfo.gov HTTP fetch)
+
+Input limits:
+- Search queries: 500 characters max
+- Chat messages: 5,000 characters per message, 50 messages per conversation
+
+Rate-limited requests return HTTP 429 with `Retry-After` and `X-RateLimit-*` headers.
+
+**For local development**, disable rate limiting:
+
+```bash
+# In .env
+RATE_LIMIT_ENABLED=false
+```
+
 ## Docker Compose Profiles
 
 ```bash

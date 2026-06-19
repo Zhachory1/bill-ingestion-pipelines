@@ -5,11 +5,13 @@ import re
 import httpx
 from loguru import logger
 from lxml import etree  # type: ignore
-from fastapi import APIRouter, Depends, HTTPException
+from fastapi import APIRouter, Depends, HTTPException, Request
 from sqlalchemy.orm import Session, joinedload
 from app.api.deps import get_db
 from app.api.schemas import BillOut, BillTextOut, BillFullTextOut
 from app.db import models
+from app.config import settings
+from app.rate_limit import limiter
 
 
 def _html_url_from_xml_url(xml_url: str) -> str:
@@ -98,7 +100,8 @@ def get_bill_text(bill_id: str, db: Session = Depends(get_db)):
 
 
 @router.get("/bills/{bill_id}/fulltext", response_model=BillFullTextOut)
-def get_bill_fulltext(bill_id: str, db: Session = Depends(get_db)):
+@limiter.limit(settings.RATE_LIMIT_FULLTEXT)
+def get_bill_fulltext(request: Request, bill_id: str, db: Session = Depends(get_db)):
     """Fetch full legislative text from govinfo.gov and return as plain text.
 
     Fetches XML on demand — text is never stored server-side.

@@ -2,7 +2,7 @@
 
 import httpx
 from loguru import logger
-from fastapi import APIRouter, Depends, HTTPException, Header
+from fastapi import APIRouter, Depends, HTTPException, Header, Request
 from sqlalchemy.orm import Session
 from app.api.deps import get_db
 from app.api.schemas import ChatRequest, ChatResponse
@@ -11,12 +11,15 @@ from app.chat.llm import get_llm_client
 from app.chat.service import ChatService
 from app.config import settings
 from app.db import models
+from app.rate_limit import limiter
 
 router = APIRouter()
 
 
 @router.post("/chat/{bill_id}", response_model=ChatResponse)
+@limiter.limit(settings.RATE_LIMIT_CHAT)
 def chat(
+    req: Request,
     bill_id: str,
     request: ChatRequest,
     db: Session = Depends(get_db),
