@@ -2,7 +2,7 @@
 
 import httpx
 from loguru import logger
-from fastapi import APIRouter, Depends, HTTPException, Header
+from fastapi import APIRouter, Depends, HTTPException, Header, Request, Response
 from sqlalchemy.orm import Session
 from app.api.deps import get_db
 from app.api.schemas import ChatRequest, ChatResponse
@@ -11,14 +11,18 @@ from app.chat.llm import get_llm_client
 from app.chat.service import ChatService
 from app.config import settings
 from app.db import models
+from app.rate_limit import limiter
 
 router = APIRouter()
 
 
 @router.post("/chat/{bill_id}", response_model=ChatResponse)
+@limiter.limit(lambda: settings.RATE_LIMIT_CHAT)
 def chat(
+    request: Request,
     bill_id: str,
-    request: ChatRequest,
+    chat_request: ChatRequest,
+    response: Response,
     db: Session = Depends(get_db),
     x_llm_api_key: str | None = Header(default=None),
 ):
@@ -48,12 +52,12 @@ def chat(
     if not x_llm_api_key and settings.ENVIRONMENT != "development":
         raise HTTPException(status_code=401, detail="An API key is required. Add yours via the 'Set API key' button.")
 
-    logger.debug(f"chat bill_id={bill_id!r} turns={len(request.messages)} user_key={'yes' if x_llm_api_key else 'no'}")
+    logger.debug(f"chat bill_id={bill_id!r} turns={len(chat_request.messages)} user_key={'yes' if x_llm_api_key else 'no'}")
     llm = get_llm_client(api_key=x_llm_api_key)
     service = ChatService(llm=llm)
     reply = service.chat(
         bill_text=bill_text,
-        messages=[m.model_dump() for m in request.messages],
+        messages=[m.model_dump() for m in chat_request.messages],
     )
     logger.debug(f"chat bill_id={bill_id!r} reply_chars={len(reply)}")
     return ChatResponse(bill_id=bill_id, response=reply)

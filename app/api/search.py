@@ -2,13 +2,14 @@
 
 from functools import lru_cache
 from loguru import logger
-from fastapi import APIRouter, Depends, Query
+from fastapi import APIRouter, Depends, Query, Request, Response, HTTPException
 from sqlalchemy.orm import Session
 from sqlalchemy import text
 from sentence_transformers import SentenceTransformer
 from app.api.deps import get_db
 from app.api.schemas import SearchResponse, BillSummaryOut
 from app.config import settings
+from app.rate_limit import limiter
 
 router = APIRouter()
 
@@ -64,11 +65,20 @@ def _hydrate_results(db: Session, search_rows: list[dict]) -> list[BillSummaryOu
 
 
 @router.get("/search", response_model=SearchResponse)
+@limiter.limit(lambda: settings.RATE_LIMIT_SEARCH)
 def search_bills(
+    request: Request,
+    response: Response,
     q: str = Query(..., min_length=1, description="Natural-language search query"),
     limit: int = Query(10, ge=1, le=100),
     db: Session = Depends(get_db),
 ):
+    # Validate query length
+    if len(q) > settings.MAX_QUERY_LENGTH:
+        raise HTTPException(
+            status_code=413,
+            detail=f"Query exceeds maximum length of {settings.MAX_QUERY_LENGTH} characters"
+        )
     logger.debug(f"Search query={q!r} limit={limit}")
     model = _get_model()
     query_vec = model.encode(q).tolist()

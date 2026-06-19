@@ -17,6 +17,7 @@ dependencies = [
     "anthropic",
     "pgvector>=0.4.2",
     "httpx",
+    "slowapi>=0.1.9",
 ]
 
 [project.optional-dependencies]
