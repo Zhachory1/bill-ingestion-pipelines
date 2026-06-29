@@ -1,10 +1,39 @@
 from pathlib import Path
+from sqlalchemy import func
 import typer
 from loguru import logger
 from app.db.session import SessionLocal
 from app.config import settings
 
 app = typer.Typer(help="Bill Retrieval Chatbot — ETL commands")
+
+
+def build_ingestion_status(db) -> dict:
+    from app.db import models
+
+    total_bills = db.query(models.Bill).count()
+    failed = db.query(models.ParseFailure).count()
+    embedded = db.query(models.Bill).filter(models.Bill.embedding.isnot(None)).count()
+    checkpoints = {
+        row.pipeline: row.last_processed
+        for row in db.query(models.IngestCheckpoint).order_by(models.IngestCheckpoint.pipeline).all()
+    }
+    top_failures = [
+        {"reason": reason or "unknown", "count": count}
+        for reason, count in db.query(
+            models.ParseFailure.error_message,
+            func.count(models.ParseFailure.id),
+        ).group_by(models.ParseFailure.error_message).order_by(func.count(models.ParseFailure.id).desc()).limit(5).all()
+    ]
+    latest_daily = db.query(models.IngestCheckpoint).filter_by(pipeline="daily").first()
+    return {
+        "bills_parsed": total_bills,
+        "bills_failed": failed,
+        "embedding_coverage_percent": round((embedded / total_bills) * 100, 2) if total_bills else 0,
+        "checkpoints": checkpoints,
+        "top_failures": top_failures,
+        "latest_daily_checkpoint": latest_daily.last_processed if latest_daily else None,
+    }
 
 
 @app.command()
@@ -49,6 +78,24 @@ def daily_dl(
         stats = dl.run()
 
     typer.echo(f"Done: {stats}")
+
+
+@app.command()
+def status():
+    """Show ingestion progress, checkpoints, and embedding coverage."""
+    with SessionLocal() as db:
+        report = build_ingestion_status(db)
+
+    typer.echo(f"Bills parsed: {report['bills_parsed']}")
+    typer.echo(f"Bills failed: {report['bills_failed']}")
+    typer.echo(f"Embedding coverage: {report['embedding_coverage_percent']}%")
+    typer.echo(f"Latest daily checkpoint: {report['latest_daily_checkpoint'] or 'none'}")
+    typer.echo("Checkpoints:")
+    for pipeline, marker in report["checkpoints"].items():
+        typer.echo(f"  {pipeline}: {marker or 'none'}")
+    typer.echo("Top parse failures:")
+    for failure in report["top_failures"]:
+        typer.echo(f"  {failure['count']}: {failure['reason']}")
 
 
 @app.command()
