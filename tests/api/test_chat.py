@@ -70,6 +70,48 @@ def test_chat_empty_messages_returns_422(client, db):
     assert resp.status_code == 422
 
 
+def test_chat_too_many_messages_returns_422(client, db, monkeypatch):
+    make_bill(db)
+    monkeypatch.setattr("app.api.schemas.settings.CHAT_MAX_MESSAGES", 1)
+    resp = client.post(
+        "/api/chat/118-hr-1",
+        json={"messages": [
+            {"role": "user", "content": "one"},
+            {"role": "assistant", "content": "two"},
+        ]},
+    )
+    assert resp.status_code == 422
+
+
+def test_chat_too_long_message_returns_422(client, db, monkeypatch):
+    make_bill(db)
+    monkeypatch.setattr("app.api.schemas.settings.CHAT_MAX_MESSAGE_CHARS", 3)
+    resp = client.post(
+        "/api/chat/118-hr-1",
+        json={"messages": [{"role": "user", "content": "long"}]},
+    )
+    assert resp.status_code == 422
+
+
+def test_chat_truncates_long_bill_text(client, db, monkeypatch):
+    make_bill(db, title="Long Bill", summary="x" * 20)
+    monkeypatch.setattr("app.api.chat.settings.CHAT_MAX_BILL_TEXT_CHARS", 8)
+    captured = {}
+    with patch("app.api.chat.get_llm_client") as mock_factory:
+        llm = MagicMock()
+        llm.complete.side_effect = lambda system, messages: (
+            captured.update({"system": system}) or "ok"
+        )
+        mock_factory.return_value = llm
+        resp = client.post(
+            "/api/chat/118-hr-1",
+            json={"messages": [{"role": "user", "content": "q"}]},
+        )
+    assert resp.status_code == 200
+    assert "Long Bil" in captured["system"]
+    assert "xxxxxxxx" not in captured["system"]
+
+
 def test_chat_uses_full_govinfo_text_when_available(client, db):
     """When text_url is set and govinfo responds, the full text should reach the LLM."""
     import httpx as _httpx
