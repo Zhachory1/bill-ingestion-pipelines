@@ -10,6 +10,7 @@ from fastapi import APIRouter, Depends, HTTPException, Query
 from sqlalchemy import text
 from sqlalchemy.orm import Session, joinedload
 from app.api.deps import get_db
+from app.api.limits import enforce_rate_limit
 from app.api.schemas import BillOut, BillTextOut, BillFullTextOut, BillSummaryOut
 from app.api.search import _hydrate_results
 from app.db import models
@@ -101,7 +102,11 @@ def get_bill_text(bill_id: str, db: Session = Depends(get_db)):
 
 
 @router.get("/bills/{bill_id}/fulltext", response_model=BillFullTextOut)
-def get_bill_fulltext(bill_id: str, db: Session = Depends(get_db)):
+def get_bill_fulltext(
+    bill_id: str,
+    db: Session = Depends(get_db),
+    _: None = Depends(enforce_rate_limit),
+):
     """Fetch full legislative text from govinfo.gov and return as plain text.
 
     Fetches XML on demand — text is never stored server-side.

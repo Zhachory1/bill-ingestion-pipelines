@@ -6,6 +6,7 @@ from fastapi import APIRouter, Depends, HTTPException, Header
 from sqlalchemy.orm import Session
 from app.api.deps import get_db
 from app.api.schemas import ChatRequest, ChatResponse
+from app.api.limits import enforce_rate_limit
 from app.api.bills import fetch_bill_text
 from app.chat.llm import get_llm_client
 from app.chat.service import ChatService
@@ -21,6 +22,7 @@ def chat(
     request: ChatRequest,
     db: Session = Depends(get_db),
     x_llm_api_key: str | None = Header(default=None),
+    _: None = Depends(enforce_rate_limit),
 ):
     """Send a message about a specific bill and receive an LLM response.
 

@@ -7,6 +7,7 @@ from sqlalchemy.orm import Session
 from sqlalchemy import text
 from sentence_transformers import SentenceTransformer
 from app.api.deps import get_db
+from app.api.limits import enforce_rate_limit
 from app.api.schemas import SearchResponse, BillSummaryOut
 from app.config import settings
 
@@ -65,9 +66,10 @@ def _hydrate_results(db: Session, search_rows: list[dict]) -> list[BillSummaryOu
 
 @router.get("/search", response_model=SearchResponse)
 def search_bills(
-    q: str = Query(..., min_length=1, description="Natural-language search query"),
+    q: str = Query(..., min_length=1, max_length=settings.MAX_QUERY_CHARS, description="Natural-language search query"),
     limit: int = Query(10, ge=1, le=100),
     db: Session = Depends(get_db),
+    _: None = Depends(enforce_rate_limit),
 ):
     logger.debug(f"Search query={q!r} limit={limit}")
     model = _get_model()

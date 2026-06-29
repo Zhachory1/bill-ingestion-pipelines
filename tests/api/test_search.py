@@ -1,6 +1,7 @@
 import numpy as np
 from unittest.mock import patch, MagicMock
 from tests.api.conftest import make_bill
+from app.api.limits import clear_rate_limits
 
 
 def _mock_model():
@@ -19,6 +20,22 @@ def test_search_returns_200(client, db):
 def test_search_missing_query_returns_422(client, db):
     resp = client.get("/api/search")
     assert resp.status_code == 422
+
+
+def test_search_query_too_long_returns_422(client, db):
+    resp = client.get("/api/search?q=" + "x" * 501)
+    assert resp.status_code == 422
+
+
+def test_search_rate_limit_returns_429(client, db, monkeypatch):
+    clear_rate_limits()
+    monkeypatch.setattr("app.api.limits.settings.ENVIRONMENT", "production")
+    monkeypatch.setattr("app.api.limits.settings.REQUEST_RATE_LIMIT", 1)
+    with patch("app.api.search._get_model", return_value=_mock_model()), \
+         patch("app.api.search._vector_search", return_value=[]):
+        assert client.get("/api/search?q=first").status_code == 200
+        assert client.get("/api/search?q=second").status_code == 429
+    clear_rate_limits()
 
 
 def test_search_returns_matching_results(client, db):
