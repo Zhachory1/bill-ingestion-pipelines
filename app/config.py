@@ -32,6 +32,9 @@ class Settings(BaseSettings):
     LLM_MODEL: str = "claude-opus-4-5"
     LLM_TEMPERATURE: float = 0.7
     LLM_MAX_TOKENS: int = 2000
+    CHAT_MAX_MESSAGES: int = 20
+    CHAT_MAX_MESSAGE_CHARS: int = 4000
+    CHAT_MAX_BILL_TEXT_CHARS: int = 20000
     OPENAI_API_KEY: str = ""
     ANTHROPIC_API_KEY: str = ""
 

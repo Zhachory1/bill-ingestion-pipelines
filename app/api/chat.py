@@ -46,6 +46,9 @@ def chat(
         if not text:
             parts = [b.title or "", b.summary or ""]
             text = "\n\n".join(p for p in parts if p).strip() or bid
+        if len(text) > settings.CHAT_MAX_BILL_TEXT_CHARS:
+            logger.info(f"Truncating bill text for {bid!r} from {len(text)} chars")
+            text = text[: settings.CHAT_MAX_BILL_TEXT_CHARS]
         return text
 
     # Primary bill
