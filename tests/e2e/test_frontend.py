@@ -7,7 +7,11 @@ live server does not need a populated database.
 import json
 
 import pytest
-from playwright.sync_api import Page, expect
+
+pytestmark = pytest.mark.e2e
+playwright = pytest.importorskip("playwright.sync_api")
+Page = playwright.Page
+expect = playwright.expect
 
 # ---------------------------------------------------------------------------
 # Fake API payloads

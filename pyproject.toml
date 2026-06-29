@@ -24,3 +24,6 @@ dev = ["pytest", "pytest-cov", "lxml-stubs", "pytest-playwright"]
 
 [tool.pytest.ini_options]
 testpaths = ["tests"]
+markers = [
+    "e2e: Playwright browser tests that require the dev extra and browser install",
+]
