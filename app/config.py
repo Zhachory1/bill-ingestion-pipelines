@@ -32,6 +32,9 @@ class Settings(BaseSettings):
     LLM_MODEL: str = "claude-opus-4-5"
     LLM_TEMPERATURE: float = 0.7
     LLM_MAX_TOKENS: int = 2000
+    REQUEST_RATE_LIMIT: int = 60
+    REQUEST_RATE_WINDOW_SECONDS: int = 60
+    MAX_QUERY_CHARS: int = 500
     OPENAI_API_KEY: str = ""
     ANTHROPIC_API_KEY: str = ""
 
