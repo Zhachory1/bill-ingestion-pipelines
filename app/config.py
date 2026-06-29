@@ -26,6 +26,7 @@ class Settings(BaseSettings):
     # Retrieval
     DEFAULT_RETRIEVAL_STRATEGY: str = "semantic"
     MAX_RESULTS: int = 10
+    BILL_TEXT_CACHE_TTL_SECONDS: int = 3600
 
     # LLM
     LLM_PROVIDER: str = "anthropic"

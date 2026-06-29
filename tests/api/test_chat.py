@@ -1,5 +1,10 @@
 from unittest.mock import patch, MagicMock
 from tests.api.conftest import make_bill
+from app.api.bills import clear_bill_text_cache
+
+
+def setup_function():
+    clear_bill_text_cache()
 
 
 def _mock_llm_client(reply: str = "LLM reply") -> MagicMock:
