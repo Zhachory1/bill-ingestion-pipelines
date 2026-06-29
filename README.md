@@ -132,7 +132,7 @@ See `.env.example` for the full list. Key variables:
 | `EMBEDDING_MODEL` | `all-MiniLM-L6-v2` | SentenceTransformer model name |
 | `ETL_BATCH_SIZE` | `100` | Files/bills per batch |
 | `LLM_PROVIDER` | `anthropic` | `anthropic` or `openai` |
-| `LLM_MODEL` | `claude-opus-4-5` | Model ID for the chatbot |
+| `LLM_MODEL` | provider default | Model ID for the chatbot (`claude-opus-4-5` for Anthropic, `gpt-4o-mini` for OpenAI) |
 | `ANTHROPIC_API_KEY` | — | Required for Anthropic LLM |
 | `OPENAI_API_KEY` | — | Required for OpenAI LLM |
 

@@ -29,7 +29,7 @@ class Settings(BaseSettings):
 
     # LLM
     LLM_PROVIDER: str = "anthropic"
-    LLM_MODEL: str = "claude-opus-4-5"
+    LLM_MODEL: str = ""
     LLM_TEMPERATURE: float = 0.7
     LLM_MAX_TOKENS: int = 2000
     OPENAI_API_KEY: str = ""
