@@ -144,5 +144,6 @@ See `.env.example` for the full list. Key variables:
 ## Notes
 
 - The `embedding` column uses `pgvector`'s `vector(384)` type; requires the `pgvector/pgvector:pg16` Docker image (not plain `postgres:16`)
+- Semantic search uses a PostgreSQL-only HNSW index on `bills.embedding` with cosine distance (`m=16`, `ef_construction=64`); run `ANALYZE bills` after large backfills.
 - Unit tests use SQLite in-memory; `_vector_search` is mocked since `<=>` is PostgreSQL-only
 - `universe-dl` writes a checkpoint after each batch; re-running resumes from the last processed file
