@@ -112,8 +112,13 @@ REPO_PATH=/path/to/congress docker compose --profile daily-dl up
 ## Development
 
 ```bash
-# Run tests
-uv run pytest
+# Run unit/integration tests
+uv run pytest -m 'not e2e'
+
+# Run Playwright E2E tests
+uv sync --extra dev
+uv run playwright install
+uv run pytest -m e2e
 
 # Run a single test
 uv run pytest tests/ingestion/test_xml_parser.py::test_parse_valid_bill -v
