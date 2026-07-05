@@ -79,6 +79,30 @@ def test_daily_dl_runs_pipeline(tmp_path):
 
 
 # ---------------------------------------------------------------------------
+# status
+# ---------------------------------------------------------------------------
+
+def test_status_prints_ingestion_report():
+    with patch("app.cli.SessionLocal") as mock_session, \
+         patch("app.cli.build_ingestion_status", return_value={
+             "bills_parsed": 10,
+             "bills_failed": 2,
+             "embedding_coverage_percent": 40.0,
+             "latest_daily_checkpoint": "abc123",
+             "checkpoints": {"daily": "abc123"},
+             "top_failures": [{"reason": "bad xml", "count": 2}],
+         }):
+        mock_session.return_value.__enter__ = MagicMock(return_value=MagicMock())
+        mock_session.return_value.__exit__ = MagicMock(return_value=False)
+        result = runner.invoke(app, ["status"])
+
+    assert result.exit_code == 0
+    assert "Bills parsed: 10" in result.output
+    assert "Embedding coverage: 40.0%" in result.output
+    assert "bad xml" in result.output
+
+
+# ---------------------------------------------------------------------------
 # embed-bills
 # ---------------------------------------------------------------------------
 

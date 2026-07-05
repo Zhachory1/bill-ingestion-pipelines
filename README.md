@@ -64,6 +64,9 @@ uv run python -m app.cli daily-dl /path/to/congress
 
 # Generate embeddings for all un-embedded bills
 uv run python -m app.cli embed-bills
+
+# Check ingestion progress and embedding coverage
+uv run python -m app.cli status
 ```
 
 ## API
