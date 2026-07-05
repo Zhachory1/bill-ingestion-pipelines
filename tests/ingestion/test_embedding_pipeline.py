@@ -103,3 +103,21 @@ def test_fallback_text_when_no_title_or_summary(db, mock_encoder):
 
     texts_passed = mock_encoder.encode.call_args_list[0][0][0]
     assert texts_passed[0] == "118-hr-99"  # falls back to bill_id
+
+
+def test_bill_text_chunk_model_round_trips_in_sqlite(db):
+    bill = models.Bill(bill_id="118-hr-101", congress=118, bill_type="hr", bill_number=101)
+    chunk = models.BillTextChunk(
+        bill_id="118-hr-101",
+        chunk_index=0,
+        text="full legislative text",
+        source_url="https://example.com/bill.xml",
+        embedding=[0.1] * 384,
+    )
+    bill.text_chunks.append(chunk)
+    db.add(bill)
+    db.commit()
+
+    saved = db.query(models.BillTextChunk).filter_by(bill_id="118-hr-101").one()
+    assert saved.text == "full legislative text"
+    assert saved.embedding == [0.1] * 384
