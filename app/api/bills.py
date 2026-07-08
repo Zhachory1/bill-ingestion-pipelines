@@ -2,6 +2,7 @@
 
 import math
 import re
+import time
 
 import httpx
 from loguru import logger
@@ -12,7 +13,14 @@ from sqlalchemy.orm import Session, joinedload
 from app.api.deps import get_db
 from app.api.schemas import BillOut, BillTextOut, BillFullTextOut, BillSummaryOut
 from app.api.search import _hydrate_results
+from app.config import settings
 from app.db import models
+
+_BILL_TEXT_CACHE: dict[str, tuple[float, str]] = {}
+
+
+def clear_bill_text_cache() -> None:
+    _BILL_TEXT_CACHE.clear()
 
 
 def _html_url_from_xml_url(xml_url: str) -> str:
@@ -21,6 +29,22 @@ def _html_url_from_xml_url(xml_url: str) -> str:
     e.g. .../xml/BILLS-118hr1ih.xml  →  .../html/BILLS-118hr1ih.htm
     """
     return xml_url.replace("/xml/", "/html/").replace(".xml", ".htm")
+
+
+def fetch_cached_bill_text(xml_url: str) -> str:
+    now = time.time()
+    cached = _BILL_TEXT_CACHE.get(xml_url)
+    if cached and cached[0] > now:
+        return cached[1]
+    try:
+        text = fetch_bill_text(xml_url)
+    except httpx.HTTPError:
+        if cached:
+            logger.warning(f"Using stale cached bill text for {xml_url}")
+            return cached[1]
+        raise
+    _BILL_TEXT_CACHE[xml_url] = (now + settings.BILL_TEXT_CACHE_TTL_SECONDS, text)
+    return text
 
 
 def fetch_bill_text(xml_url: str) -> str:
@@ -114,7 +138,7 @@ def get_bill_fulltext(bill_id: str, db: Session = Depends(get_db)):
     html_url = _html_url_from_xml_url(bill.text_url)
     logger.info(f"Fetching full text for {bill_id!r} from {html_url}")
     try:
-        text = fetch_bill_text(bill.text_url)
+        text = fetch_cached_bill_text(bill.text_url)
     except httpx.HTTPError as e:
         logger.warning(f"govinfo fetch failed for {bill_id!r}: {e}")
         raise HTTPException(status_code=502, detail="Failed to fetch bill text from govinfo.gov")

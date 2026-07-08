@@ -6,7 +6,7 @@ from fastapi import APIRouter, Depends, HTTPException, Header
 from sqlalchemy.orm import Session
 from app.api.deps import get_db
 from app.api.schemas import ChatRequest, ChatResponse
-from app.api.bills import fetch_bill_text
+from app.api.bills import fetch_cached_bill_text
 from app.chat.llm import get_llm_client
 from app.chat.service import ChatService
 from app.config import settings
@@ -39,7 +39,7 @@ def chat(
         text = None
         if b.text_url:
             try:
-                text = fetch_bill_text(b.text_url)
+                text = fetch_cached_bill_text(b.text_url)
                 logger.info(f"Using full govinfo text for {bid!r} ({len(text)} chars)")
             except Exception as e:
                 logger.warning(f"Full text fetch failed for {bid!r}, falling back: {e}")
