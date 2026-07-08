@@ -1,7 +1,8 @@
 """Pydantic response models for the bill retrieval API."""
 
 from typing import Literal
-from pydantic import BaseModel, Field, model_validator
+from pydantic import BaseModel, Field, field_validator, model_validator
+from app.config import settings
 
 
 class SponsorOut(BaseModel):
@@ -85,6 +86,13 @@ class ChatMessage(BaseModel):
     role: Literal["user", "assistant"]
     content: str
 
+    @field_validator("content")
+    @classmethod
+    def content_within_limit(cls, value: str) -> str:
+        if len(value) > settings.CHAT_MAX_MESSAGE_CHARS:
+            raise ValueError(f"message content must be at most {settings.CHAT_MAX_MESSAGE_CHARS} characters")
+        return value
+
 
 class ChatRequest(BaseModel):
     messages: list[ChatMessage]
@@ -94,6 +102,8 @@ class ChatRequest(BaseModel):
     def messages_not_empty(self) -> "ChatRequest":
         if not self.messages:
             raise ValueError("messages must not be empty")
+        if len(self.messages) > settings.CHAT_MAX_MESSAGES:
+            raise ValueError(f"messages must contain at most {settings.CHAT_MAX_MESSAGES} items")
         return self
 
 
