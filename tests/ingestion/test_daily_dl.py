@@ -1,4 +1,6 @@
 import shutil
+import subprocess
+from unittest.mock import patch
 import pytest
 from pathlib import Path
 from sqlalchemy import create_engine
@@ -32,6 +34,85 @@ def test_only_processes_xml_files():
     raw = "A\tdata/bills/118/hr/1/fdsys_billstatus.xml\nM\tdata/bills/118/hr/2/README.md"
     entries = DailyDL._parse_diff_output(raw)
     assert len(entries) == 1  # README.md filtered out
+
+
+def test_first_run_lists_all_xml_files(db, tmp_path):
+    dl = DailyDL(db=db, repo_path=tmp_path)
+
+    with patch("app.ingestion.daily_dl.subprocess.run") as mock_run:
+        mock_run.return_value.stdout = "a.xml\nb.txt\nnested/c.xml\n"
+        entries = dl._get_changed_files()
+
+    assert entries == [
+        DiffEntry(status="A", path=Path("a.xml")),
+        DiffEntry(status="A", path=Path("nested/c.xml")),
+    ]
+    mock_run.assert_called_once_with(
+        ["git", "ls-files", "*.xml"],
+        cwd=tmp_path,
+        capture_output=True,
+        text=True,
+        check=True,
+    )
+
+
+def test_incremental_run_uses_stored_checkpoint(db, tmp_path):
+    db.add(models.IngestCheckpoint(pipeline="daily", last_processed="abc123"))
+    db.commit()
+    dl = DailyDL(db=db, repo_path=tmp_path)
+
+    with patch("app.ingestion.daily_dl.subprocess.run") as mock_run:
+        mock_run.return_value.stdout = "M\tchanged.xml\n"
+        entries = dl._get_changed_files()
+
+    assert entries == [DiffEntry(status="M", path=Path("changed.xml"))]
+    mock_run.assert_called_once_with(
+        ["git", "diff", "--name-status", "abc123", "HEAD"],
+        cwd=tmp_path,
+        capture_output=True,
+        text=True,
+        check=True,
+    )
+
+
+def test_invalid_checkpoint_processes_all_xml_files(db, tmp_path):
+    db.add(models.IngestCheckpoint(pipeline="daily", last_processed="badsha"))
+    db.commit()
+    dl = DailyDL(db=db, repo_path=tmp_path)
+
+    def fake_run(args, **kwargs):
+        if args[1] == "diff":
+            raise subprocess.CalledProcessError(128, args)
+        result = type("Result", (), {})()
+        result.stdout = "all.xml\n"
+        return result
+
+    with patch("app.ingestion.daily_dl.subprocess.run", side_effect=fake_run):
+        entries = dl._get_changed_files()
+
+    assert entries == [DiffEntry(status="A", path=Path("all.xml"))]
+
+
+def test_run_updates_checkpoint_after_success(db, tmp_path):
+    dl = DailyDL(db=db, repo_path=tmp_path)
+    with patch.object(dl, "_current_head", return_value="newsha"), \
+         patch.object(dl, "_get_changed_files", return_value=[]), \
+         patch.object(dl, "_process_entries", return_value={"inserted": 0, "updated": 0, "failed": 0}):
+        stats = dl.run()
+
+    checkpoint = db.query(models.IngestCheckpoint).filter_by(pipeline="daily").one()
+    assert stats["failed"] == 0
+    assert checkpoint.last_processed == "newsha"
+
+
+def test_run_does_not_update_checkpoint_after_failure(db, tmp_path):
+    dl = DailyDL(db=db, repo_path=tmp_path)
+    with patch.object(dl, "_current_head", return_value="newsha"), \
+         patch.object(dl, "_get_changed_files", return_value=[]), \
+         patch.object(dl, "_process_entries", return_value={"inserted": 0, "updated": 0, "failed": 1}):
+        dl.run()
+
+    assert db.query(models.IngestCheckpoint).filter_by(pipeline="daily").first() is None
 
 
 def test_insert_on_added(db, tmp_path):
