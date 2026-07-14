@@ -82,6 +82,10 @@ def upsert_bill(db: Session, parsed: ParsedBill) -> None:
     else:
         logger.debug(f"Updating bill {parsed.bill_id!r}")
         bill = existing
+        if bill.title != parsed.title or bill.summary != parsed.summary:
+            bill.embedding = None
+        if bill.text_url != parsed.text_url:
+            bill.text_chunks.clear()
         bill.title = parsed.title
         bill.summary = parsed.summary
         bill.latest_action = parsed.latest_action
