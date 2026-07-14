@@ -75,6 +75,8 @@ class BillSummaryOut(BaseModel):
     introduced_date: str | None
     bill_url: str | None
     score: float
+    match_source: Literal["title_summary", "full_text"] | None = None
+    snippet: str | None = None
 
 
 class SearchResponse(BaseModel):
