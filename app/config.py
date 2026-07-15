@@ -33,6 +33,9 @@ class Settings(BaseSettings):
     LLM_MODEL: str = ""
     LLM_TEMPERATURE: float = 0.7
     LLM_MAX_TOKENS: int = 2000
+    REQUEST_RATE_LIMIT: int = 60
+    REQUEST_RATE_WINDOW_SECONDS: int = 60
+    MAX_QUERY_CHARS: int = 500
     CHAT_MAX_MESSAGES: int = 20
     CHAT_MAX_MESSAGE_CHARS: int = 4000
     CHAT_MAX_BILL_TEXT_CHARS: int = 20000

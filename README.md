@@ -143,6 +143,11 @@ See `.env.example` for the full list. Key variables:
 | `LLM_MODEL` | provider default | Model ID for the chatbot (`claude-opus-4-5` for Anthropic, `gpt-4o-mini` for OpenAI) |
 | `ANTHROPIC_API_KEY` | — | Required for Anthropic LLM |
 | `OPENAI_API_KEY` | — | Required for OpenAI LLM |
+| `REQUEST_RATE_LIMIT` | `60` | Requests per IP/session window for expensive endpoints; set `0` to disable |
+| `REQUEST_RATE_WINDOW_SECONDS` | `60` | Rate-limit window size |
+| `MAX_QUERY_CHARS` | `500` | Maximum semantic search query length |
+| `MAX_CHAT_MESSAGES` | `20` | Maximum chat messages per request |
+| `MAX_CHAT_MESSAGE_CHARS` | `4000` | Maximum characters per chat message |
 
 ## Data Sources
 
