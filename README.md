@@ -64,6 +64,9 @@ uv run python -m app.cli daily-dl /path/to/congress
 
 # Generate embeddings for all un-embedded bills
 uv run python -m app.cli embed-bills
+
+# Check ingestion progress and embedding coverage
+uv run python -m app.cli status
 ```
 
 ## API
@@ -112,8 +115,13 @@ REPO_PATH=/path/to/congress docker compose --profile daily-dl up
 ## Development
 
 ```bash
-# Run tests
-uv run pytest
+# Run unit/integration tests
+uv run pytest -m 'not e2e'
+
+# Run Playwright E2E tests
+uv sync --extra dev
+uv run playwright install
+uv run pytest -m e2e
 
 # Run a single test
 uv run pytest tests/ingestion/test_xml_parser.py::test_parse_valid_bill -v
@@ -132,7 +140,7 @@ See `.env.example` for the full list. Key variables:
 | `EMBEDDING_MODEL` | `all-MiniLM-L6-v2` | SentenceTransformer model name |
 | `ETL_BATCH_SIZE` | `100` | Files/bills per batch |
 | `LLM_PROVIDER` | `anthropic` | `anthropic` or `openai` |
-| `LLM_MODEL` | `claude-opus-4-5` | Model ID for the chatbot |
+| `LLM_MODEL` | provider default | Model ID for the chatbot (`claude-opus-4-5` for Anthropic, `gpt-4o-mini` for OpenAI) |
 | `ANTHROPIC_API_KEY` | — | Required for Anthropic LLM |
 | `OPENAI_API_KEY` | — | Required for OpenAI LLM |
 | `REQUEST_RATE_LIMIT` | `60` | Requests per IP/session window for expensive endpoints; set `0` to disable |
@@ -149,5 +157,6 @@ See `.env.example` for the full list. Key variables:
 ## Notes
 
 - The `embedding` column uses `pgvector`'s `vector(384)` type; requires the `pgvector/pgvector:pg16` Docker image (not plain `postgres:16`)
+- Semantic search uses a PostgreSQL-only HNSW index on `bills.embedding` with cosine distance (`m=16`, `ef_construction=64`); run `ANALYZE bills` after large backfills.
 - Unit tests use SQLite in-memory; `_vector_search` is mocked since `<=>` is PostgreSQL-only
 - `universe-dl` writes a checkpoint after each batch; re-running resumes from the last processed file

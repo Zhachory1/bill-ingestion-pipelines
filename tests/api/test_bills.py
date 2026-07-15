@@ -4,6 +4,7 @@ import pytest
 
 from tests.api.conftest import make_bill
 from app.db import models
+from app.api.bills import clear_bill_text_cache
 
 
 def test_get_bill_returns_200(client, db):
@@ -108,6 +109,10 @@ _HTML_URL = "https://govinfo.gov/content/pkg/BILLS-118hr1ih/html/BILLS-118hr1ih.
 _SAMPLE_HTML = b"<html><body><pre>SECTION 1. Hello World</pre></body></html>"
 
 
+def setup_function():
+    clear_bill_text_cache()
+
+
 def test_fulltext_returns_404_when_no_text_url(client, db):
     make_bill(db)  # text_url=None by default
     resp = client.get("/api/bills/118-hr-1/fulltext")
@@ -144,6 +149,38 @@ def test_fulltext_returns_502_when_govinfo_fails(client, db):
         resp = client.get("/api/bills/118-hr-1/fulltext")
 
     assert resp.status_code == 502
+
+
+def test_fulltext_uses_cache_on_repeated_requests(client, db):
+    make_bill(db, text_url=_XML_URL)
+    mock_resp = MagicMock()
+    mock_resp.content = _SAMPLE_HTML
+    mock_resp.raise_for_status = MagicMock()
+
+    with patch("app.api.bills.httpx.get", return_value=mock_resp) as mock_get:
+        first = client.get("/api/bills/118-hr-1/fulltext")
+        second = client.get("/api/bills/118-hr-1/fulltext")
+
+    assert first.status_code == 200
+    assert second.status_code == 200
+    assert mock_get.call_count == 1
+
+
+def test_fulltext_falls_back_to_stale_cache_when_refresh_fails(client, db, monkeypatch):
+    import httpx as _httpx
+
+    make_bill(db, text_url=_XML_URL)
+    mock_resp = MagicMock()
+    mock_resp.content = _SAMPLE_HTML
+    mock_resp.raise_for_status = MagicMock()
+    monkeypatch.setattr("app.api.bills.settings.BILL_TEXT_CACHE_TTL_SECONDS", -1)
+
+    with patch("app.api.bills.httpx.get", return_value=mock_resp):
+        assert client.get("/api/bills/118-hr-1/fulltext").status_code == 200
+    with patch("app.api.bills.httpx.get", side_effect=_httpx.HTTPError("timeout")):
+        data = client.get("/api/bills/118-hr-1/fulltext").json()
+
+    assert "Hello World" in data["text"]
 
 
 def test_fulltext_collapses_whitespace(client, db):

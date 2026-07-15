@@ -2,6 +2,8 @@ import numpy as np
 from unittest.mock import patch, MagicMock
 from tests.api.conftest import make_bill
 from app.api.limits import clear_rate_limits
+from app.api.search import _vector_search
+from app.db import models
 
 
 def _mock_model():
@@ -42,13 +44,20 @@ def test_search_returns_matching_results(client, db):
     make_bill(db)
     with patch("app.api.search._get_model", return_value=_mock_model()), \
          patch("app.api.search._vector_search", return_value=[
-             {"bill_id": "118-hr-1", "score": 0.95}
+             {
+                 "bill_id": "118-hr-1",
+                 "score": 0.95,
+                 "match_source": "full_text",
+                 "snippet": "Section 1. Public health language.",
+             }
          ]):
         data = client.get("/api/search?q=health").json()
     assert data["query"] == "health"
     assert len(data["results"]) == 1
     assert data["results"][0]["bill_id"] == "118-hr-1"
     assert data["results"][0]["score"] == 0.95
+    assert data["results"][0]["match_source"] == "full_text"
+    assert data["results"][0]["snippet"] == "Section 1. Public health language."
 
 
 def test_search_encodes_query_string(client, db):
@@ -83,3 +92,26 @@ def test_search_unknown_bill_ids_dropped_from_results(client, db):
          ]):
         data = client.get("/api/search?q=ghost").json()
     assert len(data["results"]) == 0
+
+
+def test_vector_search_combines_metadata_and_full_text_chunks(db):
+    query_vec = [1.0] + [0.0] * 383
+    off_axis = [0.0, 1.0] + [0.0] * 382
+    make_bill(db, bill_id="118-hr-1", bill_number=1, title="Metadata Bill", embedding=off_axis)
+    make_bill(db, bill_id="118-hr-2", bill_number=2, title="Full Text Bill", embedding=off_axis)
+    db.add(
+        models.BillTextChunk(
+            bill_id="118-hr-2",
+            chunk_index=0,
+            text="Section 1. Appropriations language appears only in full text.",
+            source_url="https://example.com/bill.xml",
+            embedding=query_vec,
+        )
+    )
+    db.commit()
+
+    rows = _vector_search(db, query_vec, limit=10)
+
+    assert rows[0]["bill_id"] == "118-hr-2"
+    assert rows[0]["match_source"] == "full_text"
+    assert rows[0]["snippet"] == "Section 1. Appropriations language appears only in full text."

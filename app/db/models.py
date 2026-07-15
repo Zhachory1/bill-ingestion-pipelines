@@ -75,6 +75,10 @@ class Bill(Base):
         nullable=True,
     )
 
+    text_chunks: Mapped[list["BillTextChunk"]] = relationship(
+        "BillTextChunk", cascade="all, delete-orphan", back_populates="bill"
+    )
+
     sponsors: Mapped[list["Sponsor"]] = relationship(
         "Sponsor", secondary=bill_sponsors, back_populates="sponsored_bills"
     )
@@ -85,6 +89,23 @@ class Bill(Base):
     subjects: Mapped[list["LegislativeSubject"]] = relationship(
         "LegislativeSubject", secondary=bill_subjects, back_populates="bills"
     )
+
+
+class BillTextChunk(Base):
+    __tablename__ = "bill_text_chunks"
+    __table_args__ = (UniqueConstraint("bill_id", "chunk_index", name="uq_bill_text_chunk"),)
+
+    id: Mapped[int] = mapped_column(Integer, primary_key=True, autoincrement=True)
+    bill_id: Mapped[str] = mapped_column(String, ForeignKey("bills.bill_id"), nullable=False, index=True)
+    chunk_index: Mapped[int] = mapped_column(Integer, nullable=False)
+    text: Mapped[str] = mapped_column(Text, nullable=False)
+    source_url: Mapped[str | None] = mapped_column(Text, nullable=True)
+    embedding: Mapped[list[float] | None] = mapped_column(
+        Vector(settings.EMBEDDING_DIM).with_variant(JsonVector(), "sqlite"),
+        nullable=True,
+    )
+
+    bill: Mapped["Bill"] = relationship("Bill", back_populates="text_chunks")
 
 
 class Sponsor(Base):

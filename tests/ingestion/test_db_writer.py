@@ -135,3 +135,39 @@ def test_upsert_updates_text_url(db):
     db.commit()
     bill = db.query(models.Bill).one()
     assert bill.text_url == new_url
+
+
+def test_upsert_clears_metadata_embedding_when_metadata_changes(db):
+    upsert_bill(db, make_parsed_bill(title="Old Title"))
+    db.commit()
+    bill = db.query(models.Bill).one()
+    bill.embedding = [0.1] * 384
+    db.commit()
+
+    upsert_bill(db, make_parsed_bill(title="New Title"))
+    db.commit()
+
+    assert db.query(models.Bill).one().embedding is None
+
+
+def test_upsert_deletes_text_chunks_when_text_url_changes(db):
+    old_url = "https://govinfo.gov/content/pkg/BILLS-118hr1ih/xml/BILLS-118hr1ih.xml"
+    new_url = "https://govinfo.gov/content/pkg/BILLS-118hr1enr/xml/BILLS-118hr1enr.xml"
+    upsert_bill(db, make_parsed_bill(text_url=old_url))
+    db.commit()
+    bill = db.query(models.Bill).one()
+    bill.text_chunks.append(
+        models.BillTextChunk(
+            chunk_index=0,
+            text="old text",
+            source_url=old_url,
+            embedding=[0.1] * 384,
+        )
+    )
+    db.commit()
+
+    upsert_bill(db, make_parsed_bill(text_url=new_url))
+    db.commit()
+
+    assert db.query(models.Bill).one().text_url == new_url
+    assert db.query(models.BillTextChunk).count() == 0
